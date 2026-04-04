@@ -36,15 +36,19 @@ export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
     };
   }, [previewUrl, stopCamera]);
 
+  // Attach stream to video element once it's rendered
+  useEffect(() => {
+    if (mode === "camera" && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [mode]);
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setMode("camera");
     } catch {
       // Camera denied or unavailable — fall back to file picker
