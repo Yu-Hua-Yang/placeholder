@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { chatComplete, buildUserMessage, parseWizardRecommendations } from "@/lib/gemini";
 import { getWizardRankingPrompt } from "@/lib/prompts";
-import { searchAllStores, STORES, type NormalizedProduct } from "@/lib/shopify-stores";
+import { fetchAllProducts, fetchAllStoreProducts, STORES, type NormalizedProduct } from "@/lib/shopify-stores";
 import type { WizardAnswer, BiometricResult, WizardRecommendedProduct, Product } from "@/lib/types";
 
 // Cache fetched products for 10 minutes to avoid hammering stores
@@ -11,7 +11,7 @@ async function getCachedProducts(): Promise<NormalizedProduct[]> {
   if (productCache && productCache.expires > Date.now()) {
     return productCache.products;
   }
-  const products = await searchAllStores(10);
+  const products = await fetchAllProducts();
   productCache = { products, expires: Date.now() + 600000 };
   return products;
 }
@@ -49,29 +49,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "movementGoal is required" }, { status: 400 });
     }
 
-    // Fetch real products from all Shopify partner stores
-    const allProducts = await getCachedProducts();
-
-    if (allProducts.length === 0) {
-      return NextResponse.json({ products: [] });
-    }
-
-    // Pre-filter by brand/store if the user mentioned a specific one
+    // Detect if the user mentioned a specific brand/store
     const allText = [movementGoal, ...answers.map((a) => `${a.selectedLabel} ${a.selectedValue}`)].join(" ").toLowerCase();
     const matchedStore = STORES.find((store) => allText.includes(store.name.toLowerCase()));
-    const filteredProducts = matchedStore
-      ? allProducts.filter((p) => {
-          const brand = matchedStore.name.toLowerCase();
-          return (
-            p.storeName.toLowerCase() === brand ||
-            p.vendor.toLowerCase() === brand ||
-            p.name.toLowerCase().includes(brand)
-          );
-        })
-      : allProducts;
 
-    // Convert to Product format for the ranking prompt
-    const productsToRank = filteredProducts.length > 0 ? filteredProducts : allProducts;
+    let productsToRank: NormalizedProduct[];
+
+    if (matchedStore) {
+      // Deep fetch: pull ALL products from the matched store (paginated, up to 250/page)
+      productsToRank = await fetchAllStoreProducts(matchedStore);
+      console.log(`[recommend] DEEP FETCH from "${matchedStore.name}": ${productsToRank.length} products`);
+    } else {
+      // Generic: use the shallow cache across all stores
+      const allProducts = await getCachedProducts();
+      productsToRank = allProducts;
+      console.log(`[recommend] generic fetch: ${productsToRank.length} products from all stores`);
+    }
+
+    if (productsToRank.length === 0) {
+      return NextResponse.json({ products: [] });
+    }
     const candidateProducts = productsToRank.map((p, i) => normalizedToProduct(p, i));
 
     // Build a lookup map for the original normalized data (images, URLs, store name)
@@ -90,6 +87,8 @@ export async function POST(req: Request) {
     ]);
 
     const recommendations = parseWizardRecommendations(text);
+    console.log(`[recommend] gemini raw IDs:`, recommendations?.map((r) => r.productId) ?? "PARSE_FAILED");
+    console.log(`[recommend] valid candidate IDs:`, candidateProducts.map((p) => p.id).slice(0, 5));
 
     if (!recommendations || recommendations.length === 0) {
       return NextResponse.json({ products: [] });

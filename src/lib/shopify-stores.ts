@@ -36,6 +36,16 @@ export const STORES: ShopifyStore[] = [
   { domain: "www.featuresneakerboutique.com", name: "Feature", specialty: ["sneakers", "premium", "streetwear"] },
   // Designer / Luxury
   { domain: "www.rickowens.eu", name: "Rick Owens", specialty: ["luxury", "avant-garde", "sneakers", "apparel"] },
+  { domain: "www.maisonmargiela.com", name: "Maison Margiela", specialty: ["luxury", "avant-garde", "sneakers", "apparel", "accessories"] },
+  // Multi-brand luxury / avant-garde boutiques (carry Rick Owens & Margiela)
+  { domain: "www.hlorenzo.com", name: "H.Lorenzo", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel", "sneakers"] },
+  { domain: "www.wrongweather.net", name: "Wrong Weather", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel"] },
+  { domain: "www.darklandsberlin.com", name: "Darklands Berlin", specialty: ["luxury", "avant-garde", "rick-owens", "apparel"] },
+  { domain: "www.antonioli.eu", name: "Antonioli", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "sneakers", "apparel"] },
+  { domain: "www.ln-cc.com", name: "LN-CC", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel", "sneakers"] },
+  { domain: "www.gravitypope.com", name: "gravitypope", specialty: ["luxury", "sneakers", "rick-owens", "margiela", "footwear"] },
+  { domain: "www.eleonorabonucci.com", name: "Eleonora Bonucci", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel"] },
+  { domain: "www.patronofthenew.com", name: "Patron of the New", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel"] },
   { domain: "www.reebok.com", name: "Reebok", specialty: ["training", "running", "shoes", "apparel"] },
   // Streetwear
   { domain: "www.palaceskateboards.com", name: "Palace", specialty: ["streetwear", "skate", "apparel"] },
@@ -82,6 +92,22 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ").trim().slice(0, 200);
 }
 
+function normalizeProducts(store: ShopifyStore, products: ShopifyProduct[]): NormalizedProduct[] {
+  return products
+    .filter((p) => p.variants.some((v) => v.available) && p.images.length > 0)
+    .map((p) => ({
+      name: p.title,
+      price: parseFloat(p.variants[0].price),
+      imageUrl: p.images[0].src,
+      productUrl: `https://${store.domain}/products/${p.handle}`,
+      storeName: store.name,
+      vendor: p.vendor || store.name,
+      description: stripHtml(p.body_html || ""),
+      productType: p.product_type || "",
+      tags: p.tags || [],
+    }));
+}
+
 export async function fetchStoreProducts(
   store: ShopifyStore,
   limit = 30,
@@ -97,29 +123,47 @@ export async function fetchStoreProducts(
     );
     if (!res.ok) return [];
     const data = await res.json();
-    const products: ShopifyProduct[] = data.products || [];
-
-    return products
-      .filter((p) => p.variants.some((v) => v.available) && p.images.length > 0)
-      .map((p) => ({
-        name: p.title,
-        price: parseFloat(p.variants[0].price),
-        imageUrl: p.images[0].src,
-        productUrl: `https://${store.domain}/products/${p.handle}`,
-        storeName: store.name,
-        vendor: p.vendor || store.name,
-        description: stripHtml(p.body_html || ""),
-        productType: p.product_type || "",
-        tags: p.tags || [],
-      }));
+    return normalizeProducts(store, data.products || []);
   } catch {
     return [];
   }
 }
 
-export async function searchAllStores(limit = 30): Promise<NormalizedProduct[]> {
+/** Fetch ALL products from a store by paginating through Shopify's 250-per-page limit */
+export async function fetchAllStoreProducts(store: ShopifyStore): Promise<NormalizedProduct[]> {
+  const all: NormalizedProduct[] = [];
+  let page = 1;
+  const perPage = 250;
+
+  try {
+    while (true) {
+      const res = await fetch(
+        `https://${store.domain}/products.json?limit=${perPage}&page=${page}`,
+        {
+          headers: { Accept: "application/json" },
+          redirect: "follow",
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      if (!res.ok) break;
+      const data = await res.json();
+      const products: ShopifyProduct[] = data.products || [];
+      if (products.length === 0) break;
+
+      all.push(...normalizeProducts(store, products));
+      if (products.length < perPage) break;
+      page++;
+    }
+  } catch {
+    // Return whatever we got so far
+  }
+  return all;
+}
+
+/** Fetch ALL products from ALL stores (paginated, in parallel) */
+export async function fetchAllProducts(): Promise<NormalizedProduct[]> {
   const results = await Promise.allSettled(
-    STORES.map((store) => fetchStoreProducts(store, limit)),
+    STORES.map((store) => fetchAllStoreProducts(store)),
   );
 
   const allProducts: NormalizedProduct[] = [];
