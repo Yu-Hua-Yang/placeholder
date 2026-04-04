@@ -1,3 +1,5 @@
+export const maxDuration = 30;
+
 import { NextResponse } from "next/server";
 import { chatComplete, buildUserMessage, parseWizardRecommendations } from "@/lib/gemini";
 import { getWizardRankingPrompt } from "@/lib/prompts";

@@ -160,10 +160,10 @@ export async function fetchAllStoreProducts(store: ShopifyStore): Promise<Normal
   return all;
 }
 
-/** Fetch ALL products from ALL stores (paginated, in parallel) */
+/** Fetch products from ALL stores (limited per store to stay within serverless timeouts) */
 export async function fetchAllProducts(): Promise<NormalizedProduct[]> {
   const results = await Promise.allSettled(
-    STORES.map((store) => fetchAllStoreProducts(store)),
+    STORES.map((store) => fetchStoreProducts(store, 40)),
   );
 
   const allProducts: NormalizedProduct[] = [];
