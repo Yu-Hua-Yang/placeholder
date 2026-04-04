@@ -21,12 +21,12 @@ export default function InteractiveOptions({
           type="button"
           disabled={disabled || option.selected}
           onClick={() => onSelect(option.value)}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
+          className={`flex min-h-[44px] items-center gap-2 border px-3 py-2.5 text-left text-sm transition-colors ${
             option.selected
-              ? "border-zinc-200 bg-zinc-100 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500"
+              ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
               : disabled
-                ? "cursor-not-allowed border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
-                : "border-zinc-200 bg-white text-zinc-700 shadow-sm hover:scale-[1.03] hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                ? "cursor-not-allowed border-zinc-200 text-zinc-300 dark:border-zinc-800 dark:text-zinc-600"
+                : "border-zinc-200 text-zinc-700 hover:border-black hover:text-black dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-white dark:hover:text-white"
           }`}
         >
           {option.icon && <span className="text-base">{option.icon}</span>}

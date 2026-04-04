@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
-import type { InteractiveOption, ProductSearchQuery } from "./types";
-import type { ProductRecommendation } from "./prompts";
+import type { InteractiveOption, ProductSearchQuery, WizardQuestion, BiometricResult, ExternalProduct } from "./types";
+import type { ProductRecommendation, WizardProductRecommendation } from "./prompts";
 
 const MODEL = "gemini-3-flash-preview";
 
@@ -86,6 +86,9 @@ export async function chatComplete(
   const model = getClient().getGenerativeModel({
     model: MODEL,
     systemInstruction: systemPrompt,
+    generationConfig: {
+      maxOutputTokens: 8192,
+    },
   });
 
   const result = await model.generateContent({
@@ -93,6 +96,37 @@ export async function chatComplete(
   });
 
   return result.response.text();
+}
+
+// --- Search-grounded (partner products) ---
+
+export async function chatCompleteWithSearch(
+  systemPrompt: string,
+  messages: GeminiMessage[],
+): Promise<string> {
+  const model = getClient().getGenerativeModel({
+    model: MODEL,
+    systemInstruction: systemPrompt,
+    tools: [
+      // @ts-expect-error - google_search tool not typed in SDK yet
+      { google_search: {} },
+    ],
+    generationConfig: {
+      maxOutputTokens: 8192,
+    },
+  });
+
+  const result = await model.generateContent({
+    contents: messages,
+  });
+
+  return result.response.text();
+}
+
+export function parseExternalProducts(text: string): ExternalProduct[] | null {
+  const match = /<external_products>([\s\S]*?)<\/external_products>/.exec(text);
+  if (!match) return null;
+  return safeJsonParse<ExternalProduct[]>(match[1], "external_products");
 }
 
 // --- Response parsing ---
@@ -151,7 +185,40 @@ export function stripTags(text: string): string {
     .replace(/<options>[\s\S]*?<\/options>/g, "")
     .replace(/<ready_to_recommend>[\s\S]*?<\/ready_to_recommend>/g, "")
     .replace(/<recommendations>[\s\S]*?<\/recommendations>/g, "")
+    .replace(/<wizard_questions>[\s\S]*?<\/wizard_questions>/g, "")
+    .replace(/<biometric_analysis>[\s\S]*?<\/biometric_analysis>/g, "")
+    .replace(/<wizard_recommendations>[\s\S]*?<\/wizard_recommendations>/g, "")
+    .replace(/<external_products>[\s\S]*?<\/external_products>/g, "")
     .trim();
+}
+
+// --- Wizard parsers ---
+
+export function parseWizardQuestions(text: string): WizardQuestion[] | null {
+  const match = /<wizard_questions>([\s\S]*?)<\/wizard_questions>/.exec(text);
+  if (!match) return null;
+  const parsed = safeJsonParse<Array<{ questionText: string; options: { label: string; value: string }[] }>>(
+    match[1],
+    "wizard_questions",
+  );
+  if (!parsed) return null;
+  return parsed.map((q, i) => ({
+    id: `q-${i}`,
+    questionText: q.questionText,
+    options: q.options,
+  }));
+}
+
+export function parseBiometricAnalysis(text: string): BiometricResult | null {
+  const match = /<biometric_analysis>([\s\S]*?)<\/biometric_analysis>/.exec(text);
+  if (!match) return null;
+  return safeJsonParse<BiometricResult>(match[1], "biometric_analysis");
+}
+
+export function parseWizardRecommendations(text: string): WizardProductRecommendation[] | null {
+  const match = /<wizard_recommendations>([\s\S]*?)<\/wizard_recommendations>/.exec(text);
+  if (!match) return null;
+  return safeJsonParse<WizardProductRecommendation[]>(match[1], "wizard_recommendations");
 }
 
 // --- Streaming parser ---

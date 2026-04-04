@@ -3,6 +3,8 @@ import inventoryData from "@/data/inventory.json";
 
 const inventory: Product[] = inventoryData as Product[];
 
+export const inventoryCount = inventory.length;
+
 function tokenize(text: string): string[] {
   return text.toLowerCase().split(/\s+/).filter(Boolean);
 }

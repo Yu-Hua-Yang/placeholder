@@ -26,7 +26,7 @@ export interface ConversationState {
   isStreaming: boolean;
 }
 
-export type MessageType = "text" | "image" | "interactive" | "products";
+export type MessageType = "text" | "image" | "interactive" | "products" | "loading";
 
 export interface Message {
   id: string;
@@ -59,4 +59,63 @@ export interface ProductSearchQuery {
   colors?: string[];
   priceRange?: { min?: number; max?: number };
   keywords?: string;
+}
+
+// --- Wizard types ---
+
+export type WizardStep =
+  | "movement-goal"
+  | "questions"
+  | "biometric-scan"
+  | "scan-results"
+  | "product-results";
+
+export interface WizardQuestion {
+  id: string;
+  questionText: string;
+  options: { label: string; value: string }[];
+}
+
+export interface WizardAnswer {
+  questionId: string;
+  questionText: string;
+  selectedLabel: string;
+  selectedValue: string;
+}
+
+export interface BiometricResult {
+  bodyType: string;
+  posture: string;
+  jointAlignment: string;
+  muscleDistribution: string;
+  mobility: string;
+  buildEstimate: string;
+  gender: "men" | "women" | "unisex";
+  skinTone: string;
+  hairColor: string;
+  complexion: string;
+  styleVibe: string;
+  colorSeason: string;
+}
+
+export interface WizardRecommendedProduct extends RecommendedProduct {
+  matchPercentage: number;
+  specs?: Record<string, string>;
+  source?: "store" | "partner";
+  partnerName?: string;
+  productUrl?: string;
+}
+
+export type ProductFilterMode = "technical" | "aesthetic";
+
+export interface ExternalProduct {
+  name: string;
+  price: number;
+  imageUrl?: string;
+  productUrl: string;
+  partnerName: string;
+  description: string;
+  matchPercentage: number;
+  rationale: string;
+  specs?: Record<string, string>;
 }

@@ -1,4 +1,4 @@
-import type { Product } from "./types";
+import type { Product, WizardAnswer, BiometricResult } from "./types";
 
 export interface ProductRecommendation {
   productId: string;
@@ -6,6 +6,11 @@ export interface ProductRecommendation {
   rationale: string;
   fitNotes: string;
   styleNotes: string;
+}
+
+export interface WizardProductRecommendation extends ProductRecommendation {
+  matchPercentage: number;
+  specs?: Record<string, string>;
 }
 
 export function getAdvisorSystemPrompt(): string {
@@ -92,4 +97,154 @@ Before the <recommendations> tag, include 1–2 sentences of conversational text
 - Prefer higher-rated products when relevance is equal
 - Never recommend more than 5 products
 - Only recommend products from the catalog above`;
+}
+
+// --- Wizard prompts ---
+
+export function getQuestionGeneratorPrompt(movementGoal: string): string {
+  return `You are AuraFit's diagnostic AI. A customer has described their movement goal: "${movementGoal}".
+
+Generate 4 to 6 follow-up questions. The FIRST question must always narrow down what gear categories the customer needs — unless the movement goal already makes it obvious.
+
+## First Question Logic
+- If the goal is VAGUE or BROAD (e.g. "Marathon Training", "Getting into CrossFit"): first question MUST ask what type of gear they need (full outfit, footwear, apparel, accessories).
+- If the goal is SPECIFIC (e.g. "running shoes", "compression tights"): skip the category question.
+
+## Remaining Questions
+Cover environment, fit/style preferences, budget, and specific needs. If a customer photo is provided, use visual cues to tailor questions. All questions and options MUST be gender-appropriate for the detected gender.
+
+Each question should have 5 to 10 options to give the customer more nuance. DO NOT include an "Other" option — the UI adds one automatically.
+
+Output inside <wizard_questions> tags as valid JSON:
+
+<wizard_questions>[
+  {
+    "questionText": "What gear are you looking for today?",
+    "options": [
+      {"label": "Full outfit (head to toe)", "value": "full-outfit"},
+      {"label": "Just footwear", "value": "footwear"},
+      {"label": "Tops only", "value": "tops"},
+      {"label": "Bottoms only", "value": "bottoms"},
+      {"label": "Apparel (tops + bottoms)", "value": "apparel"},
+      {"label": "Accessories & recovery", "value": "accessories"},
+      {"label": "Outerwear / layers", "value": "outerwear"}
+    ]
+  }
+]</wizard_questions>
+
+Rules:
+- Each question must have 5 to 10 options (NOT 4, give more choices)
+- DO NOT include "Other" as an option — the UI handles that
+- Options should be gender-appropriate
+- Keep question text concise
+- Do not include any text outside the <wizard_questions> tags
+- Always respond in English`;
+}
+
+export function getBiometricAnalysisPrompt(): string {
+  return `You are AuraFit's body and style analysis AI. Analyze the provided photo for BOTH physical characteristics AND aesthetic/style profile. This is used to recommend gear that looks great on this specific person.
+
+Return your analysis inside <biometric_analysis> tags as valid JSON:
+
+<biometric_analysis>{
+  "bodyType": "Mesomorph – Athletic",
+  "posture": "Slight anterior pelvic tilt",
+  "jointAlignment": "Neutral, slight valgus L-knee",
+  "muscleDistribution": "Quad-dominant, strong posterior chain",
+  "mobility": "Good hip flexion, limited ankle dorsiflexion",
+  "buildEstimate": "5'10\" / Medium frame",
+  "gender": "men",
+  "skinTone": "Medium olive / warm undertone",
+  "hairColor": "Dark brown",
+  "complexion": "Warm-toned, even complexion",
+  "styleVibe": "Athleisure minimalist",
+  "colorSeason": "Autumn – warm, muted earth tones"
+}</biometric_analysis>
+
+Field guidelines:
+## Physical
+- bodyType: Ectomorph / Mesomorph / Endomorph with qualifier
+- posture: Stance alignment, tilts, shoulder position
+- jointAlignment: Knee, hip, ankle alignment
+- muscleDistribution: Dominant muscle groups
+- mobility: Range-of-motion observations
+- buildEstimate: Approximate height and frame size
+- gender: "men" or "women"
+
+## Aesthetic (for color/style matching)
+- skinTone: Undertone + depth (e.g. "Deep ebony / cool undertone", "Light fair / neutral", "Medium olive / warm undertone")
+- hairColor: Current hair color
+- complexion: Overall tone warmth and characteristics
+- styleVibe: Current style read from clothing/posture (e.g. "Streetwear athletic", "Athleisure minimalist", "Outdoor rugged", "High-fashion forward")
+- colorSeason: Personal color analysis season (Spring/Summer/Autumn/Winter + warm/cool/muted/bright qualifiers). This determines which colors will look best on them.
+
+Frame all observations positively. Never mention weight, body fat, or skin conditions.
+Do not include any text outside the <biometric_analysis> tags.
+Always respond in English.`;
+}
+
+export function getWizardRankingPrompt(
+  products: Product[],
+  movementGoal: string,
+  answers: WizardAnswer[],
+  biometricResults: BiometricResult | null,
+): string {
+  // Slim down products to reduce token count — just id, name, price, category, features
+  const slimProducts = products.map((p) => ({
+    id: p.id,
+    name: p.name,
+    brand: p.subcategory || "",
+    cat: p.category,
+    $: p.price,
+    feat: p.features.slice(0, 3),
+  }));
+
+  const answersContext = answers
+    .map((a) => `Q: ${a.questionText} → ${a.selectedLabel}`)
+    .join("\n");
+
+  const biometricContext = biometricResults
+    ? `\nBody: ${biometricResults.bodyType}, ${biometricResults.buildEstimate}, ${biometricResults.gender}
+Aesthetic: Skin ${biometricResults.skinTone}, Hair ${biometricResults.hairColor}, ${biometricResults.complexion}
+Color Season: ${biometricResults.colorSeason} — Style: ${biometricResults.styleVibe}`
+    : "";
+
+  const gender = biometricResults?.gender || "unisex";
+
+  // Detect if user wants a full outfit or a specific category
+  const answersLower = answers.map((a) => a.selectedValue.toLowerCase()).join(" ");
+  const wantsOutfit = answersLower.includes("full-outfit") || answersLower.includes("full outfit") || answersLower.includes("head to toe");
+  const itemCount = wantsOutfit ? 5 : 10;
+
+  const outfitInstructions = wantsOutfit
+    ? `Build ONE cohesive outfit/fit with exactly ${itemCount} items that complement each other — shoes + bottoms + top + layer + accessory. Items MUST look great together AND flatter this person's coloring (skin tone, hair, color season). Pick colors that complement their color season. rank 1 = hero piece, rank 5 = accent. If a photo is attached, look at them and style accordingly.`
+    : `Pick the ${itemCount} best individual products for the customer's specific need. DIVERSITY IS KEY: pick from at least 4 different stores, vary price points ($30-$300+), and mix emerging brands with established ones. Consider their color season when selecting colorways. rank 1 = best match, rank ${itemCount} = least.`;
+
+  return `You are AuraFit's styling engine.
+
+Customer: ${movementGoal}
+Gender: ${gender}
+${answersContext}${biometricContext}
+
+Catalog:
+${JSON.stringify(slimProducts)}
+
+IMPORTANT:
+- Only pick products appropriate for "${gender}" gender.
+- If the customer's goal mentions a SPECIFIC BRAND (e.g. "Nike running shoes", "Adidas gear", "NOBULL training"), ONLY pick products from that brand. Filter by brand name in product name, vendor, or store. Do NOT include products from other brands — the customer asked for a specific brand and mixing in others is a bad experience. If fewer than ${itemCount} products match the brand, return only those that do.
+- If no brand is mentioned, diversify across stores.
+${outfitInstructions}
+
+Return COMPACT JSON inside <wizard_recommendations> tags. NO line breaks, NO extra spaces in the JSON:
+
+<wizard_recommendations>[{"productId":"...","rank":1,"matchPercentage":96,"rationale":"5 words max","fitNotes":"5 words max","styleNotes":"5 words max","specs":{"Material":"val","Fit":"val"}}]</wizard_recommendations>
+
+CRITICAL RULES:
+- productId MUST exactly match an id from the catalog (format: shopify-NUMBER-storename)
+- Exactly ${itemCount} items
+- Only ${gender} or unisex products
+- rationale/fitNotes/styleNotes: MAX 5 WORDS EACH — be extremely brief
+- specs: exactly 2 key-value pairs, short values
+- Single line of JSON, no whitespace
+- Do not include any text outside the tags`;
 }

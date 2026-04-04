@@ -67,7 +67,7 @@ export default function ChatWindow({
         id: crypto.randomUUID(),
         role: "assistant",
         content: "Finding your perfect gear...",
-        type: "text",
+        type: "loading",
       };
 
       setMessages([...currentMessages, loadingMsg]);
@@ -148,6 +148,18 @@ export default function ChatWindow({
               content: parsed!.displayText,
               products: products ?? undefined,
               type: products ? "products" : "text",
+            };
+            return copy;
+          });
+        } else if (fullText) {
+          // Parsing failed — fallback to plain text
+          const fallbackText = stripTags(fullText);
+          setMessages((prev) => {
+            const copy = [...prev];
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              content: fallbackText || "Sorry, I couldn't format the recommendations. Please try again.",
+              type: "text",
             };
             return copy;
           });
@@ -253,6 +265,15 @@ export default function ChatWindow({
                 parsed = parseResponse(event.text);
               } else if (event.type === "error") {
                 console.error("Stream error:", event.error);
+                setMessages((prev) => {
+                  const copy = [...prev];
+                  copy[copy.length - 1] = {
+                    ...copy[copy.length - 1],
+                    content: "Something went wrong. Please try again.",
+                    type: "text",
+                  };
+                  return copy;
+                });
               }
             } catch {
               // skip unparseable lines
@@ -292,6 +313,18 @@ export default function ChatWindow({
             sendRecommend(allMsgs);
             return;
           }
+        } else if (fullText) {
+          // Parsing failed — fallback to plain text rendering
+          const fallbackText = stripTags(fullText);
+          setMessages((prev) => {
+            const copy = [...prev];
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              content: fallbackText || "I'm here to help! Could you tell me more about what you're looking for?",
+              type: "text",
+            };
+            return copy;
+          });
         }
       } catch (error) {
         console.error("Chat error:", error);
@@ -361,18 +394,18 @@ export default function ChatWindow({
     <div className="flex flex-1 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-        <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">AuraFit</span>
+        <span className="text-sm font-bold uppercase tracking-widest text-black dark:text-white">AuraFit</span>
         <button
           type="button"
           onClick={onStartOver}
-          className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          className="min-h-[44px] px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-zinc-400 transition-colors hover:text-black dark:text-zinc-500 dark:hover:text-white"
         >
           Start over
         </button>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 sm:px-4">
         <div className="mx-auto flex max-w-2xl flex-col gap-3">
           {messages.map((msg, i) => (
             <MessageBubble
@@ -389,7 +422,7 @@ export default function ChatWindow({
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="border-t border-zinc-200 px-3 py-3 dark:border-zinc-800 sm:px-4">
         <div className="mx-auto flex max-w-2xl gap-2">
           <input
             type="text"
@@ -403,13 +436,13 @@ export default function ChatWindow({
             }}
             placeholder="Type a message..."
             disabled={isStreaming}
-            className="flex-1 rounded-full border border-zinc-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-400 disabled:opacity-50 dark:border-zinc-700 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
+            className="min-h-[44px] flex-1 border-b-2 border-zinc-200 bg-transparent px-1 py-2.5 text-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-black disabled:opacity-50 dark:border-zinc-800 dark:placeholder:text-zinc-500 dark:focus:border-white"
           />
           <button
             type="button"
             onClick={handleSend}
             disabled={isStreaming || !input.trim()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-[#ccc]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
             aria-label="Send message"
           >
             <svg
