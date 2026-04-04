@@ -1,3 +1,30 @@
+export function captureVideoToBase64(
+  video: HTMLVideoElement,
+  maxSize = 1024,
+  quality = 0.7,
+): string {
+  let width = video.videoWidth;
+  let height = video.videoHeight;
+
+  if (width > maxSize || height > maxSize) {
+    const scale = maxSize / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get canvas context");
+
+  ctx.drawImage(video, 0, 0, width, height);
+
+  const jpeg = canvas.toDataURL("image/jpeg", quality);
+  return jpeg.replace(/^data:image\/jpeg;base64,/, "");
+}
+
 export async function resizeImageToBase64(
   file: File,
   maxSize = 1024,

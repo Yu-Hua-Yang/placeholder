@@ -1,50 +1,101 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { resizeImageToBase64 } from "@/lib/image";
+import { resizeImageToBase64, captureVideoToBase64 } from "@/lib/image";
 
 interface PhotoUploadProps {
   onSubmit: (image: string, prompt: string) => void;
   disabled?: boolean;
 }
 
+type Mode = "idle" | "camera" | "preview";
+
 export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
+  const [mode, setMode] = useState<Mode>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [base64, setBase64] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const dragCounterRef = useRef(0);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
+      stopCamera();
     };
-  }, [previewUrl]);
+  }, [previewUrl, stopCamera]);
 
-  const handleFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
-
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(URL.createObjectURL(file));
-    setBase64(null);
-    setIsResizing(true);
-
+  const startCamera = async () => {
     try {
-      const result = await resizeImageToBase64(file);
-      setBase64(result);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setMode("camera");
     } catch {
-      setPreviewUrl(null);
-    } finally {
-      setIsResizing(false);
+      // Camera denied or unavailable — fall back to file picker
+      fileInputRef.current?.click();
     }
-  }, [previewUrl]);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    try {
+      const raw = captureVideoToBase64(videoRef.current);
+      // Create a preview from the base64
+      setPreviewUrl(`data:image/jpeg;base64,${raw}`);
+      setBase64(raw);
+      setMode("preview");
+    } catch {
+      // ignore capture errors
+    }
+    stopCamera();
+  };
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) return;
+
+      stopCamera();
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(file));
+      setBase64(null);
+      setIsResizing(true);
+      setMode("preview");
+
+      try {
+        const result = await resizeImageToBase64(file);
+        setBase64(result);
+      } catch {
+        setPreviewUrl(null);
+        setMode("idle");
+      } finally {
+        setIsResizing(false);
+      }
+    },
+    [previewUrl, stopCamera],
+  );
 
   const clearImage = () => {
+    stopCamera();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setBase64(null);
+    setMode("idle");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -79,21 +130,25 @@ export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Drop zone */}
+      {/* Camera / Drop zone / Preview */}
       <div
-        role="button"
-        tabIndex={0}
-        aria-label="Upload a photo"
-        className={`relative flex aspect-video cursor-pointer items-center justify-center rounded-xl border-2 border-dashed transition-colors ${
-          isDragging
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-            : previewUrl
-              ? "border-transparent"
-              : "border-zinc-300 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500"
+        className={`relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border-2 transition-colors ${
+          mode === "camera"
+            ? "border-transparent bg-black"
+            : isDragging
+              ? "border-dashed border-blue-500 bg-blue-50 dark:bg-blue-950/20"
+              : mode === "preview"
+                ? "border-transparent"
+                : "cursor-pointer border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500"
         }`}
-        onClick={() => fileInputRef.current?.click()}
+        role={mode === "idle" ? "button" : undefined}
+        tabIndex={mode === "idle" ? 0 : undefined}
+        aria-label={mode === "idle" ? "Upload a photo" : undefined}
+        onClick={() => {
+          if (mode === "idle") fileInputRef.current?.click();
+        }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
+          if (mode === "idle" && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
             fileInputRef.current?.click();
           }
@@ -114,7 +169,37 @@ export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
           }}
         />
 
-        {previewUrl ? (
+        {/* Live camera feed */}
+        {mode === "camera" && (
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="h-full w-full object-cover"
+            />
+            <button
+              type="button"
+              aria-label="Take photo"
+              className="absolute bottom-3 left-1/2 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white bg-white/30 transition-colors hover:bg-white/50"
+              onClick={capturePhoto}
+            >
+              <div className="h-10 w-10 rounded-full bg-white" />
+            </button>
+            <button
+              type="button"
+              aria-label="Cancel camera"
+              className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+              onClick={clearImage}
+            >
+              <XIcon />
+            </button>
+          </>
+        )}
+
+        {/* Image preview */}
+        {mode === "preview" && previewUrl && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -138,18 +223,14 @@ export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
                 clearImage();
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path
-                  d="M11 3L3 11M3 3l8 8"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <XIcon />
             </button>
           </>
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-zinc-400 dark:text-zinc-500">
+        )}
+
+        {/* Idle state — upload or camera prompt */}
+        {mode === "idle" && (
+          <div className="flex flex-col items-center gap-3 text-zinc-400 dark:text-zinc-500">
             <svg
               width="36"
               height="36"
@@ -167,6 +248,29 @@ export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
             <span className="text-sm">
               Drag & drop a photo or click to browse
             </span>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                startCamera();
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              Use camera
+            </button>
           </div>
         )}
       </div>
@@ -190,5 +294,18 @@ export default function PhotoUpload({ onSubmit, disabled }: PhotoUploadProps) {
         Start
       </button>
     </form>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M11 3L3 11M3 3l8 8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
