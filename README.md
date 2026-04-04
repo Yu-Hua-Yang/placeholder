@@ -29,7 +29,7 @@ AI-Powered In-Store Advisory Platform
   - A customer mentioning ankle rehab gets questions
   about swelling and brace usage.
   - A customer training for an Ironman gets questions
-  about pace targets and heat tolerance.
+  about pace `targets and heat tolerance.
   - A customer who says "I want something loud" gets
   that folded into the mix.                             
    
