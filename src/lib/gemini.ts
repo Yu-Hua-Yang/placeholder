@@ -1,78 +1,78 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
 import type { InteractiveOption, ProductSearchQuery } from "./types";
 import type { ProductRecommendation } from "./prompts";
 
-const MODEL = "claude-sonnet-4-6-20250725";
+const MODEL = "gemini-3-flash-preview";
 
-let client: Anthropic | null = null;
+let client: GoogleGenerativeAI | null = null;
 
-function getClient(): Anthropic {
+function getClient(): GoogleGenerativeAI {
   if (!client) {
-    client = new Anthropic();
+    client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   }
   return client;
 }
 
 // --- Message building ---
 
+export type GeminiMessage = Content;
+
 export function buildUserMessage(
   text: string,
   imageBase64?: string,
   imageMimeType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-): MessageParam {
+): GeminiMessage {
+  const parts: Part[] = [];
   if (imageBase64 && imageMimeType) {
-    return {
-      role: "user",
-      content: [
-        {
-          type: "image",
-          source: { type: "base64", media_type: imageMimeType, data: imageBase64 },
-        },
-        { type: "text", text },
-      ],
-    };
+    parts.push({
+      inlineData: { mimeType: imageMimeType, data: imageBase64 },
+    });
   }
-  return { role: "user", content: text };
+  parts.push({ text });
+  return { role: "user", parts };
 }
 
 // --- Streaming ---
 
 export function streamChat(
   systemPrompt: string,
-  messages: MessageParam[],
+  messages: GeminiMessage[],
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
   return new ReadableStream({
-    start(controller) {
-      const stream = getClient().messages.stream({
-        model: MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages,
-      });
+    async start(controller) {
+      try {
+        const model = getClient().getGenerativeModel({
+          model: MODEL,
+          systemInstruction: systemPrompt,
+        });
 
-      let fullText = "";
+        const result = await model.generateContentStream({
+          contents: messages,
+        });
 
-      stream.on("text", (delta) => {
-        fullText += delta;
-        const chunk = `data: ${JSON.stringify({ type: "text_delta", text: delta })}\n\n`;
-        controller.enqueue(encoder.encode(chunk));
-      });
+        let fullText = "";
 
-      stream.on("finalMessage", () => {
-        const chunk = `data: ${JSON.stringify({ type: "message_complete", text: fullText })}\n\n`;
-        controller.enqueue(encoder.encode(chunk));
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) {
+            fullText += text;
+            const data = `data: ${JSON.stringify({ type: "text_delta", text })}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          }
+        }
+
+        const completeData = `data: ${JSON.stringify({ type: "message_complete", text: fullText })}\n\n`;
+        controller.enqueue(encoder.encode(completeData));
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
-      });
-
-      stream.on("error", (error) => {
-        const chunk = `data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`;
-        controller.enqueue(encoder.encode(chunk));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        const data = `data: ${JSON.stringify({ type: "error", error: message })}\n\n`;
+        controller.enqueue(encoder.encode(data));
         controller.close();
-      });
+      }
     },
   });
 }
@@ -81,17 +81,18 @@ export function streamChat(
 
 export async function chatComplete(
   systemPrompt: string,
-  messages: MessageParam[],
+  messages: GeminiMessage[],
 ): Promise<string> {
-  const response = await getClient().messages.create({
+  const model = getClient().getGenerativeModel({
     model: MODEL,
-    max_tokens: 2048,
-    system: systemPrompt,
-    messages,
+    systemInstruction: systemPrompt,
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock && "text" in textBlock ? textBlock.text : "";
+  const result = await model.generateContent({
+    contents: messages,
+  });
+
+  return result.response.text();
 }
 
 // --- Response parsing ---
@@ -119,26 +120,22 @@ function safeJsonParse<T>(json: string, label: string): T | null {
 }
 
 export function parseResponse(text: string): ParsedResponse {
-  // Extract last occurrence of each tag
   let options: InteractiveOption[] | null = null;
   let readyToRecommend: ProductSearchQuery | null = null;
   let recommendations: ProductRecommendation[] | null = null;
 
   let match: RegExpExecArray | null;
 
-  // Options — take the last match
   const optionsRegex = new RegExp(TAG_PATTERNS.options.source, "g");
   while ((match = optionsRegex.exec(text)) !== null) {
     options = safeJsonParse<InteractiveOption[]>(match[1], "options");
   }
 
-  // Ready to recommend — take the last match
   const rtrRegex = new RegExp(TAG_PATTERNS.readyToRecommend.source, "g");
   while ((match = rtrRegex.exec(text)) !== null) {
     readyToRecommend = safeJsonParse<ProductSearchQuery>(match[1], "ready_to_recommend");
   }
 
-  // Recommendations — take the last match
   const recRegex = new RegExp(TAG_PATTERNS.recommendations.source, "g");
   while ((match = recRegex.exec(text)) !== null) {
     recommendations = safeJsonParse<ProductRecommendation[]>(match[1], "recommendations");
@@ -173,7 +170,6 @@ export function createStreamingParser() {
       for (const char of delta) {
         if (inTag) {
           tagBuffer += char;
-          // Check if we've closed a known tag
           for (const tag of KNOWN_TAGS) {
             if (tagBuffer.endsWith(`</${tag}>`)) {
               inTag = false;
@@ -182,14 +178,12 @@ export function createStreamingParser() {
             }
           }
         } else if (char === "<") {
-          // Check if this could be the start of a known tag
           tagBuffer = "<";
           inTag = true;
         } else {
           output += char;
         }
 
-        // If we're buffering but it's clearly not a known tag, flush
         if (inTag && tagBuffer.length > 2) {
           const couldMatch = KNOWN_TAGS.some((tag) =>
             `<${tag}>`.startsWith(tagBuffer) || `</${tag}>`.startsWith(tagBuffer),

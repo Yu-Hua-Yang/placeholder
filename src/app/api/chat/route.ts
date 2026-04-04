@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import {
   buildUserMessage,
   streamChat,
   chatComplete,
   parseResponse,
-} from "@/lib/claude";
+  type GeminiMessage,
+} from "@/lib/gemini";
 import { getAdvisorSystemPrompt, getRankingSystemPrompt } from "@/lib/prompts";
 import { searchProducts } from "@/lib/inventory";
 import type { ProductSearchQuery } from "@/lib/types";
@@ -37,7 +37,7 @@ function detectMimeType(
 function buildMessages(
   messages: Array<{ role: string; content: string }>,
   customerImage?: string,
-): MessageParam[] {
+): GeminiMessage[] {
   return messages.map((msg, i) => {
     if (i === 0 && msg.role === "user" && customerImage) {
       return buildUserMessage(
@@ -46,7 +46,8 @@ function buildMessages(
         detectMimeType(customerImage),
       );
     }
-    return { role: msg.role as "user" | "assistant", content: msg.content };
+    const role = msg.role === "assistant" ? "model" : "user";
+    return { role, parts: [{ text: msg.content }] };
   });
 }
 

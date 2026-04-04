@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PhotoUpload from "@/components/PhotoUpload";
+import ChatWindow from "@/components/ChatWindow";
 
 export default function Home() {
   const [submittedData, setSubmittedData] = useState<{
@@ -11,9 +12,11 @@ export default function Home() {
 
   if (submittedData) {
     return (
-      <div className="flex flex-1 items-center justify-center p-4">
-        <p className="text-zinc-500">Chat UI coming soon...</p>
-      </div>
+      <ChatWindow
+        customerImage={submittedData.image}
+        initialPrompt={submittedData.prompt}
+        onStartOver={() => setSubmittedData(null)}
+      />
     );
   }
 
