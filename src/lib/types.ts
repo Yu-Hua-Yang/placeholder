@@ -44,6 +44,13 @@ export interface InteractiveOption {
   selected?: boolean;
 }
 
+export interface RecommendedProduct extends Product {
+  rank: number;
+  rationale: string;
+  fitNotes: string;
+  styleNotes: string;
+}
+
 export interface ProductSearchQuery {
   categories?: string[];
   sports?: string[];

@@ -13,6 +13,12 @@ function matchesKeywords(product: Product, keywords: string): boolean {
   return tokens.every((token) => searchable.includes(token));
 }
 
+export function getProductsByIds(ids: string[]): Product[] {
+  return ids
+    .map((id) => inventory.find((p) => p.id === id))
+    .filter((p): p is Product => p !== undefined);
+}
+
 export function searchProducts(query: ProductSearchQuery): Product[] {
   const results = inventory.filter((product) => {
     if (!product.inStock) return false;
