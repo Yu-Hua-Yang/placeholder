@@ -1,27 +1,63 @@
-The Journey: From Entry to Checkout
+AI-Powered In-Store Advisory Platform                 
+                                                        
+  Snap. Talk. Fit.                                      
+                                                        
+  ---                                                   
+  Overview                                              
+                                                        
+  A retail AI that turns a single photo and a short     
+  conversation into precise, inventory-backed gear      
+  recommendations. No forms, no search bars — just a    
+  picture, a prompt, and a few smart questions.         
+                                                      
+  ---                                            
+  How It Works
 
-1. The Digital Gatekeeper (Store Access)
-The first screen is a simple, high-security terminal asking for a Location Code (e.g., H&MDTMTL). This restricts the AI's "Search Universe" exclusively to that store’s real-time SKU Database. It ensures the AI never recommends a shoe that isn't physically in the backroom.
+  1. Prompt & Snap
 
-2. The Clinical Intake (Contextual Triage)
-Instead of a search bar, the AI asks: "What movement goal are we solving for today?"
+  The customer describes what they're looking for and   
+  takes a single photo. That's it — a sentence or two
+  and one image to kick things off.                     
+                                                      
+  2. Consult                                     
 
-Scenario A (The Rebuilder): User inputs "Ankle rehab." The AI triggers a "Stability Protocol" follow-up: "Are you using a brace? Is the pain on the lateral or medial side?"
+  The AI reads the photo — estimating build, frame, and 
+  proportions — and pairs it with the customer's prompt
+  to dynamically generate follow-up questions. There is 
+  no fixed script. The AI adapts in real time:        
+                                                 
+  - A customer mentioning ankle rehab gets questions
+  about swelling and brace usage.
+  - A customer training for an Ironman gets questions
+  about pace targets and heat tolerance.
+  - A customer who says "I want something loud" gets
+  that folded into the mix.                             
+   
+  Each question sharpens the recommendation. The        
+  conversation is as short or as deep as the customer 
+  wants it to be.                                
 
-Scenario B (The Performer): User inputs "Ironman training." The AI triggers a "Efficiency Protocol": "What is your goal marathon pace? Do you have a history of heat fatigue?"
+  3. Fit Recommendations
 
-3. The Anatomical Mirror (360° Biometric Scan)
-The user stands in front of their phone or an in-store kiosk. The AI performs a 10-second Full Body Scan to analyze:
+  The AI returns a ranked list of in-stock products     
+  matched to the customer's body, goal, and style — with
+   a brief rationale for each pick. Technical           
+  suitability comes first; aesthetic preference is    
+  applied on top.                                
 
-Body Composition: Muscle distribution and limb length.
-
-Biometrics: Arch height, heel width, and joint alignment.
-
-The Goal: To match the fabric compression and shoe geometry to their unique frame.
-
-4. The Physics-First Filter (The Double Logic)
-The AI processes the store's data through two specific lenses:
-
-The Technical Filter: Recommends gear based on Physics (e.g., stack height, torsional rigidity, weight).
-
-The Aesthetic Filter: Finally, it asks: "How do you want to look while doing it?" If the user wants "flashy," the AI surfaces the neon colorways of the technically-correct winners.
+  ---
+  Under the Hood
+                
+  - Hardcoded store inventory: The AI's product universe
+   is locked to a single store's live SKU database.     
+  Every recommendation is something physically on the
+  shelf.                                                
+  - Dynamically conversational: No canned flows — every
+  follow-up is generated from the photo and the  
+  customer's own words.
+  - One photo, no setup: A single snap is enough to
+  inform fit. No multi-angle scans, no onboarding.      
+   
+  ---                                                   
+  Designed for specialty retail environments in sporting
+   goods, athletic recovery, and performance apparel.
