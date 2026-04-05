@@ -213,11 +213,28 @@ Color Season: ${biometricResults.colorSeason} — Style: ${biometricResults.styl
 
   // Detect if user wants a full outfit or a specific category
   const answersLower = answers.map((a) => a.selectedValue.toLowerCase()).join(" ");
-  const wantsOutfit = answersLower.includes("full-outfit") || answersLower.includes("full outfit") || answersLower.includes("head to toe");
+  const goalLower = movementGoal.toLowerCase();
+  const outfitKeywords = ["full-outfit", "full outfit", "head to toe", "outfit", "whole look", "complete look", "drip", "style me", "dress me"];
+  // "fit" and "look" need word-boundary matching to avoid false positives like "fitness" or "looking"
+  const outfitPatterns = [/\bfit\b/, /\blook\b/];
+  const wantsOutfit =
+    outfitKeywords.some((kw) => answersLower.includes(kw) || goalLower.includes(kw)) ||
+    outfitPatterns.some((re) => re.test(answersLower) || re.test(goalLower));
   const itemCount = wantsOutfit ? 5 : 10;
 
   const outfitInstructions = wantsOutfit
-    ? `Build ONE cohesive outfit/fit with exactly ${itemCount} items that complement each other — shoes + bottoms + top + layer + accessory. Items MUST look great together AND flatter this person's coloring (skin tone, hair, color season). Pick colors that complement their color season. rank 1 = hero piece, rank 5 = accent. If a photo is attached, look at them and style accordingly.`
+    ? `Build ONE cohesive outfit/fit with EXACTLY these 5 category slots — no exceptions:
+  1. SHOES (rank 1) — one pair of footwear
+  2. BOTTOMS (rank 2) — one pair of pants, shorts, leggings, or joggers
+  3. TOP (rank 3) — one shirt, tee, tank, or jersey
+  4. LAYER (rank 4) — one jacket, hoodie, vest, or pullover
+  5. ACCESSORY (rank 5) — one hat, bag, socks, watch, or sunglasses
+
+STRICT RULES:
+- Each slot MUST be a DIFFERENT product category. Do NOT pick 2 shoes, 2 pants, 2 socks, etc.
+- Skip underwear, compression tights, and base layers — those are not outfit pieces.
+- All 5 items must look great TOGETHER as a single outfit. Pick a cohesive color palette.
+- Flatter this person's coloring (skin tone, hair, color season). If a photo is attached, look at them and style accordingly.`
     : `Pick the ${itemCount} best individual products for the customer's specific need. DIVERSITY IS KEY: pick from at least 4 different stores, vary price points ($30-$300+), and mix emerging brands with established ones. Consider their color season when selecting colorways. rank 1 = best match, rank ${itemCount} = least.`;
 
   return `You are AuraFit's styling engine.
