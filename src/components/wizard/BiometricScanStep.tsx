@@ -45,12 +45,44 @@ function ScanOverlay() {
         <span className="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">Ready</span>
       </div>
 
-      {/* Crosshair center */}
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="h-6 w-px bg-white/15" style={{ transform: "translateY(-16px)" }} />
-        <div className="h-6 w-px bg-white/15" style={{ transform: "translateY(10px)" }} />
-        <div className="h-px w-6 bg-white/15" style={{ position: "absolute", top: "50%", left: "-16px" }} />
-        <div className="h-px w-6 bg-white/15" style={{ position: "absolute", top: "50%", right: "-16px" }} />
+      {/* Body frame guide */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <svg
+          viewBox="0 0 200 400"
+          className="h-[70%] w-auto opacity-[0.12]"
+          fill="none"
+          stroke="white"
+          strokeWidth="1"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* Head */}
+          <ellipse cx="100" cy="42" rx="22" ry="28" />
+          {/* Neck */}
+          <line x1="92" y1="70" x2="92" y2="88" />
+          <line x1="108" y1="70" x2="108" y2="88" />
+          {/* Shoulders */}
+          <line x1="92" y1="88" x2="46" y2="100" />
+          <line x1="108" y1="88" x2="154" y2="100" />
+          {/* Torso */}
+          <line x1="46" y1="100" x2="56" y2="220" />
+          <line x1="154" y1="100" x2="144" y2="220" />
+          {/* Hips */}
+          <line x1="56" y1="220" x2="64" y2="240" />
+          <line x1="144" y1="220" x2="136" y2="240" />
+          {/* Legs */}
+          <line x1="64" y1="240" x2="70" y2="370" />
+          <line x1="136" y1="240" x2="130" y2="370" />
+          {/* Feet */}
+          <line x1="70" y1="370" x2="58" y2="380" />
+          <line x1="130" y1="370" x2="142" y2="380" />
+          {/* Arms */}
+          <line x1="46" y1="100" x2="28" y2="210" />
+          <line x1="154" y1="100" x2="172" y2="210" />
+          {/* Hands */}
+          <line x1="28" y1="210" x2="24" y2="224" />
+          <line x1="172" y1="210" x2="176" y2="224" />
+        </svg>
       </div>
     </>
   );
@@ -185,7 +217,8 @@ export default function BiometricScanStep({ onCapture, isLoading }: BiometricSca
         {/* Title — top */}
         <div className="absolute top-0 left-0 right-0 p-5">
           <h2 className="text-lg font-black uppercase tracking-tight text-white sm:text-xl">Body Scan</h2>
-          <p className="mt-1 text-[10px] text-white/50">Stand facing the camera for analysis</p>
+          <p className="mt-1 text-[10px] text-white/50">Align your body with the guide for best results</p>
+          <p className="mt-0.5 text-[9px] text-white/30">Selfie works too — just less accurate</p>
         </div>
 
         {/* Controls — bottom */}
