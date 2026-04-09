@@ -25,10 +25,10 @@ export default function OptionButton({ label, value, onSelect, disabled }: Optio
       onClick={handleClick}
       className={`flex min-h-[48px] w-full items-center justify-between border-b px-1 py-3 text-left text-base font-semibold transition-all sm:min-h-[56px] sm:py-4 sm:text-lg ${
         selected
-          ? "border-black text-black dark:border-white dark:text-white"
+          ? "border-white text-white"
           : disabled
-            ? "cursor-not-allowed border-zinc-100 text-zinc-300 dark:border-zinc-800 dark:text-zinc-600"
-            : "border-zinc-200 text-zinc-700 hover:border-black hover:text-black dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-white dark:hover:text-white"
+            ? "cursor-not-allowed border-zinc-900 text-zinc-700"
+            : "border-zinc-800 text-zinc-400 hover:border-white hover:text-white"
       }`}
     >
       <span>{label}</span>

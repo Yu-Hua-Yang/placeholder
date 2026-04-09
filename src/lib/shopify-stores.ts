@@ -29,7 +29,7 @@ export const STORES: ShopifyStore[] = [
   { domain: "www.stance.com", name: "Stance", specialty: ["socks", "accessories", "performance"] },
   // Sportswear
   { domain: "wsportswears.com", name: "W Sportswears", specialty: ["sportswear", "apparel", "activewear"] },
-  // Sneakers / Streetwear (carry Nike, Adidas, Yeezy, Jordan)
+  // Sneakers / Streetwear
   { domain: "www.undefeated.com", name: "Undefeated", specialty: ["sneakers", "nike", "jordan", "streetwear"] },
   { domain: "www.deadstock.ca", name: "Deadstock", specialty: ["sneakers", "streetwear", "yeezy", "nike"] },
   { domain: "nrml.ca", name: "NRML", specialty: ["sneakers", "streetwear", "apparel", "nike", "adidas"] },
@@ -37,7 +37,6 @@ export const STORES: ShopifyStore[] = [
   // Designer / Luxury
   { domain: "www.rickowens.eu", name: "Rick Owens", specialty: ["luxury", "avant-garde", "sneakers", "apparel"] },
   { domain: "www.maisonmargiela.com", name: "Maison Margiela", specialty: ["luxury", "avant-garde", "sneakers", "apparel", "accessories"] },
-  // Multi-brand luxury / avant-garde boutiques (carry Rick Owens & Margiela)
   { domain: "www.hlorenzo.com", name: "H.Lorenzo", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel", "sneakers"] },
   { domain: "www.wrongweather.net", name: "Wrong Weather", specialty: ["luxury", "avant-garde", "rick-owens", "margiela", "apparel"] },
   { domain: "www.darklandsberlin.com", name: "Darklands Berlin", specialty: ["luxury", "avant-garde", "rick-owens", "apparel"] },
@@ -51,17 +50,33 @@ export const STORES: ShopifyStore[] = [
   { domain: "www.palaceskateboards.com", name: "Palace", specialty: ["streetwear", "skate", "apparel"] },
   { domain: "www.stussy.com", name: "Stussy", specialty: ["streetwear", "apparel", "accessories"] },
   { domain: "us.bape.com", name: "BAPE", specialty: ["streetwear", "luxury", "sneakers", "apparel"] },
-  // Multi-brand sneaker / sportswear retailers (carry Nike, Adidas, NB, Puma, etc.)
+  // Multi-brand sneaker retailers
   { domain: "www.shoepalace.com", name: "Shoe Palace", specialty: ["sneakers", "nike", "adidas", "puma", "jordan"] },
   { domain: "www.dtlr.com", name: "DTLR", specialty: ["sneakers", "nike", "adidas", "new-balance", "apparel"] },
   { domain: "www.socialstatuspgh.com", name: "Social Status", specialty: ["sneakers", "nike", "new-balance", "premium"] },
   { domain: "www.apbstore.com", name: "APB Store", specialty: ["sneakers", "nike", "adidas", "streetwear"] },
   { domain: "www.packershoes.com", name: "Packer Shoes", specialty: ["sneakers", "nike", "adidas", "new-balance", "asics"] },
   { domain: "www.wishatl.com", name: "Wish ATL", specialty: ["sneakers", "nike", "adidas", "jordan", "streetwear"] },
-  // Performance / running specialty
+  // Performance
   { domain: "www.tenthousand.cc", name: "Ten Thousand", specialty: ["training", "gym", "shorts", "apparel"] },
   // Women's athletic
   { domain: "www.carbon38.com", name: "Carbon38", specialty: ["women", "activewear", "luxury", "nike"] },
+  // Designer / High Fashion
+  { domain: "fearofgod.com", name: "Fear of God", specialty: ["luxury", "streetwear", "designer", "apparel", "essentials"] },
+  { domain: "www.kidsuper.com", name: "KidSuper", specialty: ["streetwear", "art", "designer", "apparel"] },
+  { domain: "www.sacai.jp", name: "Sacai", specialty: ["luxury", "avant-garde", "designer", "apparel", "accessories"] },
+  { domain: "www.baseblu.com", name: "Baseblu", specialty: ["luxury", "designer", "apparel", "max-mara", "the-row"] },
+  // Multi-brand Sneaker Boutiques (EU)
+  { domain: "www.nakedcph.com", name: "Naked Copenhagen", specialty: ["sneakers", "streetwear", "nike", "adidas", "new-balance"] },
+  { domain: "www.footpatrol.com", name: "Footpatrol", specialty: ["sneakers", "adidas", "nike", "reebok", "streetwear"] },
+  { domain: "www.oneblockdown.it", name: "One Block Down", specialty: ["sneakers", "streetwear", "designer", "apparel"] },
+  // Premium Footwear
+  { domain: "www.greats.com", name: "GREATS", specialty: ["sneakers", "premium", "minimal", "footwear"] },
+  // Outdoor / Casual
+  { domain: "www.roark.com", name: "Roark", specialty: ["outdoor", "adventure", "apparel", "swim"] },
+  { domain: "www.marinelayer.com", name: "Marine Layer", specialty: ["casual", "comfortable", "apparel", "sustainable"] },
+  // Premium Basics
+  { domain: "www.sunspel.com", name: "Sunspel", specialty: ["luxury", "basics", "premium", "apparel", "minimal"] },
 ];
 
 export interface ShopifyProduct {
@@ -129,7 +144,7 @@ export async function fetchStoreProducts(
   }
 }
 
-/** Fetch ALL products from a store by paginating through Shopify's 250-per-page limit */
+/** Fetch ALL products from a store by paginating */
 export async function fetchAllStoreProducts(store: ShopifyStore): Promise<NormalizedProduct[]> {
   const all: NormalizedProduct[] = [];
   let page = 1;
@@ -160,10 +175,10 @@ export async function fetchAllStoreProducts(store: ShopifyStore): Promise<Normal
   return all;
 }
 
-/** Fetch products from ALL stores (limited per store to stay within serverless timeouts) */
+/** Fetch products from ALL stores (250 per store) */
 export async function fetchAllProducts(): Promise<NormalizedProduct[]> {
   const results = await Promise.allSettled(
-    STORES.map((store) => fetchStoreProducts(store, 40)),
+    STORES.map((store) => fetchStoreProducts(store, 250)),
   );
 
   const allProducts: NormalizedProduct[] = [];

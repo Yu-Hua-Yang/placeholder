@@ -68,6 +68,7 @@ export type WizardStep =
   | "questions"
   | "biometric-scan"
   | "scan-results"
+  | "email-gate"
   | "product-results";
 
 export interface WizardQuestion {
@@ -83,6 +84,12 @@ export interface WizardAnswer {
   selectedValue: string;
 }
 
+export interface ColorPaletteEntry {
+  name: string;
+  hex: string;
+  usage: string; // e.g. "base", "accent", "neutral", "pop"
+}
+
 export interface BiometricResult {
   bodyType: string;
   posture: string;
@@ -96,6 +103,7 @@ export interface BiometricResult {
   complexion: string;
   styleVibe: string;
   colorSeason: string;
+  personalPalette: ColorPaletteEntry[];
 }
 
 export interface WizardRecommendedProduct extends RecommendedProduct {
@@ -119,3 +127,29 @@ export interface ExternalProduct {
   rationale: string;
   specs?: Record<string, string>;
 }
+
+// --- Recommendation modes ---
+
+export type RecommendationMode = "ten-picks" | "two-fits";
+
+export interface ArchetypeProduct extends WizardRecommendedProduct {
+  archetype: string;
+}
+
+export interface OutfitItem extends WizardRecommendedProduct {
+  slot: string;
+  colorDescription: string;
+  visualDescription: string;
+}
+
+export interface OutfitFit {
+  name: string;
+  vibe: string;
+  colorPalette: string[];
+  items: OutfitItem[];
+  generatedImageBase64: string | null;
+}
+
+export type RecommendationResult =
+  | { mode: "ten-picks"; category: string; products: ArchetypeProduct[] }
+  | { mode: "two-fits"; fits: OutfitFit[] };

@@ -1,23 +1,46 @@
 "use client";
 
-import { useState } from "react";
-import MeasuringMate from "./MeasuringMate";
-import MascotBadge from "./MascotBadge";
+import { useState, useEffect, useRef } from "react";
 
 interface MovementGoalStepProps {
   onSubmit: (goal: string) => void;
+  onPrefetch: (goal: string) => void;
   isLoading: boolean;
 }
 
 const QUICK_PILLS = [
-  "Running a half marathon",
-  "Everyday gym workouts",
-  "Recovering from knee surgery",
-  "Standing all day at work",
+  "Rick Owens head-to-toe dark avant-garde look",
+  "Full Nike fit — sneakers, joggers, layers",
+  "Complete gym outfit for heavy lifting",
+  "Casual streetwear drip for going out",
 ];
 
-export default function MovementGoalStep({ onSubmit, isLoading }: MovementGoalStepProps) {
+export default function MovementGoalStep({ onSubmit, onPrefetch, isLoading }: MovementGoalStepProps) {
   const [input, setInput] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const prefetchedPills = useRef(false);
+
+  // Prefetch questions for quick pills on mount
+  useEffect(() => {
+    if (prefetchedPills.current) return;
+    prefetchedPills.current = true;
+    QUICK_PILLS.forEach((pill) => onPrefetch(pill));
+  }, [onPrefetch]);
+
+  // Debounce prefetch as user types (800ms after they stop)
+  useEffect(() => {
+    const trimmed = input.trim();
+    if (!trimmed || trimmed.length < 5) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onPrefetch(trimmed);
+    }, 800);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [input, onPrefetch]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,47 +53,31 @@ export default function MovementGoalStep({ onSubmit, isLoading }: MovementGoalSt
   };
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 sm:px-6">
+    <div className="flex flex-1 flex-col items-center justify-center px-6 sm:px-8">
       <div className="w-full max-w-xl">
-        <div className="mb-4 flex justify-center sm:mb-6">
-          <MascotBadge pose="idle" size="lg" />
-        </div>
-
-        <h1 className="mb-2 text-center text-3xl font-black tracking-tight text-black sm:text-5xl dark:text-white">
+        <h1 className="mb-3 text-center text-3xl font-black uppercase tracking-tight text-white sm:text-5xl">
           What are you looking for?
         </h1>
-        <p className="mx-auto mb-10 max-w-md text-center text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mx-auto mb-12 max-w-md text-center text-sm text-zinc-500">
           The more precise you are, the better your recommendations will be.
         </p>
 
-        <form onSubmit={handleSubmit} className="mb-8">
+        <form onSubmit={handleSubmit} className="mb-10">
           <div className="relative">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="e.g. Marathon Training"
+              placeholder="e.g. Running shoes, gym outfit, streetwear fit"
               disabled={isLoading}
-              className="w-full border-b-2 border-zinc-200 bg-transparent py-4 pl-1 pr-24 text-lg font-medium outline-none transition-colors placeholder:text-zinc-300 focus:border-black disabled:opacity-50 dark:border-zinc-700 dark:placeholder:text-zinc-600 dark:focus:border-white"
+              className="w-full border-b border-zinc-800 bg-transparent py-4 pl-1 pr-16 text-lg font-medium text-white outline-none transition-colors placeholder:text-zinc-700 focus:border-white disabled:opacity-50"
             />
-            <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center text-zinc-300 transition-colors hover:text-black dark:text-zinc-600 dark:hover:text-white"
-                aria-label="Voice input"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </svg>
-              </button>
-              {input.trim() && (
+            {input.trim() && (
+              <div className="absolute right-0 top-1/2 -translate-y-1/2">
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+                  className="flex h-10 w-10 items-center justify-center bg-white text-black transition-colors hover:bg-zinc-200 disabled:opacity-50"
                   aria-label="Submit"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -78,8 +85,8 @@ export default function MovementGoalStep({ onSubmit, isLoading }: MovementGoalSt
                     <polyline points="12 5 19 12 12 19" />
                   </svg>
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </form>
 
@@ -90,7 +97,7 @@ export default function MovementGoalStep({ onSubmit, isLoading }: MovementGoalSt
               type="button"
               onClick={() => handlePill(pill)}
               disabled={isLoading}
-              className="rounded-full border border-zinc-200 px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-black hover:text-black disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-white dark:hover:text-white"
+              className="border border-zinc-800 px-4 py-2 text-sm text-zinc-500 transition-colors hover:border-white hover:text-white disabled:opacity-30"
             >
               {pill}
             </button>
@@ -98,9 +105,9 @@ export default function MovementGoalStep({ onSubmit, isLoading }: MovementGoalSt
         </div>
 
         {isLoading && (
-          <div className="mt-10 flex items-center justify-center gap-3 text-zinc-400">
-            <MascotBadge pose="run" size="md" />
-            <span className="text-sm">Generating questions...</span>
+          <div className="mt-12 flex items-center justify-center gap-3 text-zinc-500">
+            <div className="spinner" />
+            <span className="text-sm uppercase tracking-wider">Generating questions</span>
           </div>
         )}
       </div>

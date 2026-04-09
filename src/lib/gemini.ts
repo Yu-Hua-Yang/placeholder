@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
-import type { InteractiveOption, ProductSearchQuery, WizardQuestion, BiometricResult, ExternalProduct } from "./types";
+import type { InteractiveOption, ProductSearchQuery, WizardQuestion, BiometricResult, ExternalProduct, RecommendationResult } from "./types";
 import type { ProductRecommendation, WizardProductRecommendation } from "./prompts";
 
 const MODEL = "gemini-3-flash-preview";
+const EMBEDDING_MODEL = "gemini-embedding-001";
 
 let client: GoogleGenerativeAI | null = null;
 
@@ -219,6 +220,147 @@ export function parseWizardRecommendations(text: string): WizardProductRecommend
   const match = /<wizard_recommendations>([\s\S]*?)<\/wizard_recommendations>/.exec(text);
   if (!match) return null;
   return safeJsonParse<WizardProductRecommendation[]>(match[1], "wizard_recommendations");
+}
+
+// Raw shapes from Gemini before hydration
+interface RawTenPicks {
+  mode: "ten-picks";
+  category: string;
+  products: (WizardProductRecommendation & { archetype: string })[];
+}
+
+interface RawTwoFitsItem extends WizardProductRecommendation {
+  slot: string;
+  colorDescription: string;
+  visualDescription: string;
+}
+
+interface RawTwoFits {
+  mode: "two-fits";
+  fits: { name: string; vibe: string; colorPalette: string[]; items: RawTwoFitsItem[] }[];
+}
+
+export function parseWizardRecommendationResult(text: string): RawTenPicks | RawTwoFits | null {
+  const match = /<wizard_recommendations>([\s\S]*?)<\/wizard_recommendations>/.exec(text);
+  if (!match) return null;
+  const parsed = safeJsonParse<RawTenPicks | RawTwoFits>(match[1], "wizard_recommendations");
+  if (!parsed || !parsed.mode) return null;
+  return parsed;
+}
+
+// --- Outfit image generation ---
+
+const IMAGE_MODEL = "nano-banana-pro-preview";
+
+export async function generateOutfitImage(
+  biometricImageBase64: string,
+  outfitPrompt: string,
+): Promise<string | null> {
+  try {
+    const model = getClient().getGenerativeModel({
+      model: IMAGE_MODEL,
+      generationConfig: {
+        // @ts-expect-error - responseModalities not typed in SDK yet
+        responseModalities: ["IMAGE", "TEXT"],
+      },
+    });
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: "image/jpeg", data: biometricImageBase64 } },
+            { text: outfitPrompt },
+          ],
+        },
+      ],
+    });
+
+    const response = result.response;
+    const parts = response.candidates?.[0]?.content?.parts;
+    if (!parts) return null;
+
+    for (const part of parts) {
+      if (part.inlineData?.mimeType?.startsWith("image/")) {
+        return part.inlineData.data as string;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Outfit image generation failed:", error);
+    return null;
+  }
+}
+
+// --- Embeddings ---
+
+// Gemini batchEmbedContents supports up to 100 texts per call.
+const BATCH_SIZE = 100;
+const MAX_RETRIES = 3;
+
+const EMBED_DIMENSIONS = 1536;
+
+async function batchEmbedWithRetry(
+  model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
+  texts: string[],
+): Promise<number[][]> {
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const result = await model.batchEmbedContents({
+        requests: texts.map((text) => ({
+          content: { role: "user", parts: [{ text }] },
+          outputDimensionality: EMBED_DIMENSIONS,
+        })),
+      });
+      return result.embeddings.map((emb) => emb.values);
+    } catch (err) {
+      const is429 = err instanceof Error && err.message.includes("429");
+      if (is429 && attempt < MAX_RETRIES - 1) {
+        const wait = Math.pow(2, attempt + 1) * 10_000; // 20s, 40s
+        console.log(`[embed] rate limited, waiting ${wait / 1000}s before retry ${attempt + 2}/${MAX_RETRIES}`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return []; // unreachable
+}
+
+export async function embedTexts(texts: string[]): Promise<number[][]> {
+  const model = getClient().getGenerativeModel({ model: EMBEDDING_MODEL });
+  const allEmbeddings: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    const embeddings = await batchEmbedWithRetry(model, batch);
+    allEmbeddings.push(...embeddings);
+  }
+
+  return allEmbeddings;
+}
+
+export async function embedText(text: string): Promise<number[]> {
+  const model = getClient().getGenerativeModel({ model: EMBEDDING_MODEL });
+  const result = await model.embedContent({
+    content: { role: "user", parts: [{ text }] },
+    outputDimensionality: EMBED_DIMENSIONS,
+  } as Parameters<typeof model.embedContent>[0]);
+  return result.embedding.values;
+}
+
+export function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 // --- Streaming parser ---

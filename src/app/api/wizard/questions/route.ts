@@ -1,4 +1,4 @@
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 import { NextResponse } from "next/server";
 import { chatComplete, buildUserMessage, parseWizardQuestions } from "@/lib/gemini";
@@ -6,7 +6,7 @@ import { getQuestionGeneratorPrompt } from "@/lib/prompts";
 
 export async function POST(req: Request) {
   try {
-    const { movementGoal, image, gender } = await req.json();
+    const { movementGoal, gender } = await req.json();
     if (!movementGoal || typeof movementGoal !== "string") {
       return NextResponse.json({ error: "movementGoal is required" }, { status: 400 });
     }
@@ -14,11 +14,7 @@ export async function POST(req: Request) {
     const genderContext = gender ? ` Customer gender: ${gender}.` : "";
     const systemPrompt = getQuestionGeneratorPrompt(movementGoal);
     const messages = [
-      buildUserMessage(
-        `My movement goal: ${movementGoal}${genderContext}`,
-        image && typeof image === "string" ? image : undefined,
-        image ? "image/jpeg" : undefined,
-      ),
+      buildUserMessage(`My movement goal: ${movementGoal}${genderContext}`),
     ];
 
     const text = await chatComplete(systemPrompt, messages);

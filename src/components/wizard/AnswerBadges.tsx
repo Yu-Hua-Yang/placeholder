@@ -14,7 +14,7 @@ export default function AnswerBadges({ answers }: AnswerBadgesProps) {
       {answers.map((answer) => (
         <span
           key={answer.questionId}
-          className="border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+          className="border border-zinc-800 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500"
         >
           {answer.selectedLabel}
         </span>

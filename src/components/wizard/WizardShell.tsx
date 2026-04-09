@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Component } from "react";
+import type { ReactNode } from "react";
 import { useWizard } from "@/hooks/useWizard";
 import HeaderBar from "./HeaderBar";
 import MovementGoalStep from "./MovementGoalStep";
@@ -8,6 +9,42 @@ import QuestionCardStep from "./QuestionCardStep";
 import BiometricScanStep from "./BiometricScanStep";
 import ScanResultsStep from "./ScanResultsStep";
 import ProductResultsStep from "./ProductResultsStep";
+import EmailGate from "./EmailGate";
+
+class ErrorBoundary extends Component<
+  { children: ReactNode; onReset: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; onReset: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
+          <p className="text-lg font-medium text-zinc-400">Something went wrong.</p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false });
+              this.props.onReset();
+            }}
+            className="bg-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-zinc-200"
+          >
+            Start over
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function WizardShell() {
   const {
@@ -15,8 +52,11 @@ export default function WizardShell() {
     submitBiometricImage,
     advanceToGoal,
     submitMovementGoal,
+    submitEmail,
+    prefetchQuestions,
     answerQuestion,
     fetchProducts,
+    generateFitImage,
     reset,
   } = useWizard();
 
@@ -44,8 +84,10 @@ export default function WizardShell() {
             isLoading={state.isLoading}
           />
         ) : null;
+      case "email-gate":
+        return <EmailGate onSubmit={submitEmail} />;
       case "movement-goal":
-        return <MovementGoalStep onSubmit={submitMovementGoal} isLoading={state.isLoading} />;
+        return <MovementGoalStep onSubmit={submitMovementGoal} onPrefetch={prefetchQuestions} isLoading={state.isLoading} />;
       case "questions":
         return (
           <QuestionCardStep
@@ -57,26 +99,35 @@ export default function WizardShell() {
           />
         );
       case "product-results":
-        return <ProductResultsStep products={state.products} isLoading={state.isLoading} />;
+        return (
+          <ProductResultsStep
+            result={state.recommendationResult}
+            isLoading={state.isLoading}
+            personalPalette={state.biometricResults?.personalPalette || []}
+            onGenerateFitImage={generateFitImage}
+          />
+        );
       default:
         return null;
     }
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-white dark:bg-black">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-black">
       <HeaderBar onStartOver={reset} />
 
       {state.error && (
-        <div className="mx-4 mt-2 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 sm:mx-6 sm:px-4 sm:py-3 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
+        <div className="mx-6 mt-3 border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400 sm:mx-8">
           {state.error}
         </div>
       )}
 
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        <div className="animate-fade-in flex flex-1 flex-col" key={state.currentStep}>
-          {renderStep()}
-        </div>
+      <div className="relative min-h-0 flex-1">
+        <ErrorBoundary onReset={reset}>
+          <div className="animate-fade-in absolute inset-0 overflow-y-auto" key={state.currentStep}>
+            {renderStep()}
+          </div>
+        </ErrorBoundary>
       </div>
     </div>
   );
