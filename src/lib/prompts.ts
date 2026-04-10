@@ -209,8 +209,12 @@ Color season rules:
 - Autumn: warm, muted, rich (olive, burnt orange, burgundy, mustard, forest green)
 - Winter: cool, clear, vivid (pure white, black, cobalt blue, emerald, true red)
 
+IMPORTANT: If the photo does not contain a visible person (e.g. it's a random object, scenery, or text), respond with exactly:
+<no_person>true</no_person>
+Do NOT attempt to fabricate biometric data for non-human subjects.
+
 Frame all observations positively. Never mention weight, body fat, or skin conditions.
-Do not include any text outside the <biometric_analysis> tags.
+Do not include any text outside the <biometric_analysis> or <no_person> tags.
 Always respond in English.`;
 }
 

@@ -110,7 +110,13 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, isLoading: action.loading };
 
     case "SET_ERROR":
-      return { ...state, error: action.error, isLoading: false };
+      return {
+        ...state,
+        error: action.error,
+        isLoading: false,
+        // Reset image so camera restarts on biometric scan errors
+        biometricImage: state.currentStep === "biometric-scan" ? null : state.biometricImage,
+      };
 
     case "RESET":
       return { ...initialState };
@@ -137,8 +143,8 @@ export function useWizard() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image }),
         });
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `API error: ${res.status}`);
         dispatch({ type: "SET_BIOMETRIC_RESULTS", results: data.results });
       } catch (err) {
         dispatch({ type: "SET_ERROR", error: err instanceof Error ? err.message : "Failed to analyze image" });

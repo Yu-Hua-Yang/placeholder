@@ -15,6 +15,14 @@ export async function POST(req: Request) {
     const messages = [buildUserMessage("Analyze this photo for biometric fitting.", image, "image/jpeg")];
 
     const text = await chatComplete(systemPrompt, messages);
+
+    if (text.includes("<no_person>")) {
+      return NextResponse.json(
+        { error: "We couldn't detect a person in that photo. Please try again with a photo of yourself." },
+        { status: 422 },
+      );
+    }
+
     const results = parseBiometricAnalysis(text);
 
     if (!results) {
