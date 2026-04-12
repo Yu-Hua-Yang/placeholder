@@ -47,14 +47,14 @@ export default function EmailGate({ onSubmit }: EmailGateProps) {
             onChange={(e) => { setEmail(e.target.value); setError(""); }}
             placeholder="Enter your email"
             autoFocus
-            className="mb-4 w-full border-b border-zinc-800 bg-transparent py-4 text-center text-lg font-medium text-white outline-none transition-colors placeholder:text-zinc-700 focus:border-[#c4a46c]"
+            className="mb-4 w-full border-b border-zinc-800 bg-transparent py-4 text-center text-lg font-medium text-white outline-none transition-colors placeholder:text-zinc-700 focus:border-accent"
           />
           {error && (
             <p className="mb-4 text-center text-xs text-red-400">{error}</p>
           )}
           <button
             type="submit"
-            className="w-full bg-[#c4a46c] py-4 text-xs font-bold uppercase tracking-[0.25em] text-black transition-colors hover:bg-[#d4b47c]"
+            className="w-full bg-accent py-4 text-xs font-bold uppercase tracking-[0.25em] text-black transition-colors hover:bg-sky-200"
           >
             Continue
           </button>

@@ -13,7 +13,7 @@ export default function HeaderBar({ onStartOver }: HeaderBarProps) {
 
   return (
     <div className="flex items-center justify-between border-b border-zinc-900 px-6 py-4 sm:px-8">
-      <span className="text-base font-black uppercase tracking-[0.25em] text-white">
+      <span className="text-2xl font-serif font-light italic text-white">
         AuraFits
       </span>
       <button

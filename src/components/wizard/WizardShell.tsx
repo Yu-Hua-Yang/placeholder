@@ -46,7 +46,7 @@ class ErrorBoundary extends Component<
   }
 }
 
-export default function WizardShell() {
+export default function WizardShell({ initialGoal }: { initialGoal?: string }) {
   const {
     state,
     submitBiometricImage,
@@ -58,7 +58,7 @@ export default function WizardShell() {
     fetchProducts,
     generateFitImage,
     reset,
-  } = useWizard();
+  } = useWizard(initialGoal);
 
   const fetchTriggered = useRef(false);
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function WizardShell() {
       case "email-gate":
         return <EmailGate onSubmit={submitEmail} />;
       case "movement-goal":
-        return <MovementGoalStep onSubmit={submitMovementGoal} onPrefetch={prefetchQuestions} isLoading={state.isLoading} />;
+        return <MovementGoalStep onSubmit={submitMovementGoal} onPrefetch={prefetchQuestions} isLoading={false} />;
       case "questions":
         return (
           <QuestionCardStep
@@ -113,7 +113,7 @@ export default function WizardShell() {
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-black">
+    <div className="flex h-[100dvh] w-screen flex-col overflow-hidden bg-black">
       <HeaderBar onStartOver={reset} />
 
       {state.error && (

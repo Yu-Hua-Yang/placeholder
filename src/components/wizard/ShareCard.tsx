@@ -5,7 +5,7 @@ import type { ArchetypeProduct, OutfitFit, ColorPaletteEntry } from "@/lib/types
 
 const CARD_W = 1080;
 const CARD_PAD = 80;
-const GOLD = "#c4a46c";
+const GOLD = "#7dd3fc";
 const WHITE = "#ffffff";
 const MUTED = "#a1a1aa";
 const DIM = "#52525b";
@@ -376,7 +376,7 @@ export default function ShareButton({ mode, category, products, personalPalette,
       type="button"
       onClick={handleShare}
       disabled={sharing}
-      className="flex items-center justify-center gap-2 border border-zinc-800 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-[#c4a46c] hover:text-[#c4a46c] disabled:opacity-50"
+      className="flex items-center justify-center gap-2 border border-zinc-800 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
     >
       {sharing ? (
         <>

@@ -2,7 +2,7 @@ export const maxDuration = 300;
 
 import { NextResponse } from "next/server";
 import { fetchAllProducts } from "@/lib/shopify-stores";
-import { syncProducts } from "@/lib/vector-store";
+import { syncProducts, buildVendorMap } from "@/lib/vector-store";
 
 export async function POST() {
   try {
@@ -13,7 +13,12 @@ export async function POST() {
     const result = await syncProducts(products);
     console.log(`[sync] done:`, result);
 
-    return NextResponse.json(result);
+    // Rebuild vendor/brand mapping in background
+    console.log("[sync] rebuilding vendor map...");
+    const vendorResult = await buildVendorMap();
+    console.log(`[sync] vendor map: ${vendorResult.total} raw → ${vendorResult.clusters} brands`);
+
+    return NextResponse.json({ ...result, vendors: vendorResult });
   } catch (error) {
     console.error("[sync] error:", error);
     return NextResponse.json(

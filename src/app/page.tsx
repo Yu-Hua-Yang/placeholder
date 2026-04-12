@@ -5,11 +5,15 @@ import LandingPage from "@/components/wizard/LandingPage";
 import WizardShell from "@/components/wizard/WizardShell";
 
 export default function Home() {
-  const [started, setStarted] = useState(false);
+  const [goal, setGoal] = useState<string | null>(null);
 
-  if (!started) {
-    return <LandingPage onStart={() => setStarted(true)} />;
+  if (!goal) {
+    return <LandingPage onStartWithGoal={setGoal} />;
   }
 
-  return <WizardShell />;
+  return (
+    <div className="min-h-screen bg-black text-zinc-200">
+      <WizardShell initialGoal={goal} />
+    </div>
+  );
 }

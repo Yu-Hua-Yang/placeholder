@@ -1,7 +1,9 @@
 import { Index } from "@upstash/vector";
-import { embedText, embedTexts } from "./gemini";
+import { embedText, embedTexts, cosineSimilarity } from "./gemini";
 import type { NormalizedProduct } from "./shopify-stores";
 type ProductMetadata = Record<string, string | number>;
+type RangeVector = { id: string | number; metadata?: Record<string, string> };
+type RangeResult = { vectors: RangeVector[]; nextCursor: string };
 
 let index: Index | null = null;
 
@@ -173,7 +175,7 @@ const CATEGORY_PATTERNS: Record<string, RegExp> = {
   accessories: /hat|cap|sock|bag|belt|sunglasses|watch|scarf|glove|headband|beanie|backpack/i,
 };
 
-function classifyCategory(p: { name: string; productType: string; tags: string[] }): string {
+export function classifyCategory(p: { name: string; productType: string; tags: string[] }): string {
   const text = `${p.name} ${p.productType} ${p.tags.join(" ")}`;
   for (const [cat, pattern] of Object.entries(CATEGORY_PATTERNS)) {
     if (pattern.test(text)) return cat;
@@ -289,6 +291,290 @@ function diverseSelect(
   }
 
   return selected;
+}
+
+/** Strip diacritics: ç→c, é→e, etc. */
+function stripDiacritics(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Normalize a vendor name to a canonical key for grouping */
+function vendorKey(name: string): string {
+  let k = stripDiacritics(name).toLowerCase().trim();
+  // Strip corporate/regional suffixes (multi-word like "Netherlands BV")
+  k = k.replace(/\s+(netherlands\s+bv|europe|usa|uk|us|inc|llc|ltd|co|bv|gmbh|srl|spa)\.?$/i, "");
+  // Strip hyphenated product-line suffixes (e.g. "Cotopaxi-Accessory" → "cotopaxi")
+  k = k.replace(/-[a-z]+$/i, "");
+  // Normalize whitespace
+  k = k.replace(/\s+/g, " ");
+  return k;
+}
+
+/** Pick the best display name from a group of vendor variants */
+function bestDisplayName(variants: string[]): string {
+  // Prefer the shortest non-all-caps version, or shortest overall
+  const titled = variants.filter((v) => v !== v.toUpperCase() && v !== v.toLowerCase());
+  if (titled.length > 0) {
+    return titled.sort((a, b) => a.length - b.length)[0];
+  }
+  // If all are uppercase or lowercase, pick shortest and title-case it
+  const shortest = variants.sort((a, b) => a.length - b.length)[0];
+  return shortest;
+}
+
+/**
+ * Embedding-based vendor clustering.
+ * Maps every raw vendor name → canonical display name.
+ * Built in the background, persists in memory.
+ */
+let _vendorMap: Map<string, string> | null = null; // raw → canonical
+let _vendorList: string[] | null = null; // sorted canonical names
+let _vendorMapTs = 0;
+const VENDOR_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const SIMILARITY_THRESHOLD = 0.82;
+
+/** Scan the index and collect raw vendor names with their product counts */
+async function scanRawVendors(): Promise<Map<string, number>> {
+  const idx = getIndex();
+  const counts = new Map<string, number>();
+  let cursor: string | number = 0;
+
+  while (true) {
+    const result: RangeResult = await idx.range({
+      cursor,
+      limit: 500,
+      includeMetadata: true,
+    });
+
+    for (const item of result.vectors) {
+      const m = (item.metadata || {}) as Record<string, string>;
+      if (m.vendor) {
+        counts.set(m.vendor, (counts.get(m.vendor) || 0) + 1);
+      }
+    }
+
+    if (!result.nextCursor || result.nextCursor === "0") break;
+    cursor = result.nextCursor;
+  }
+
+  return counts;
+}
+
+/**
+ * Build the vendor mapping using embeddings.
+ * 1. Collects all raw vendor names from the index
+ * 2. Rule-based pre-grouping (fast, catches accents/casing/suffixes)
+ * 3. Embeds each group's canonical name
+ * 4. Clusters by cosine similarity to merge near-duplicates
+ * 5. Caches the raw→canonical mapping in memory
+ *
+ * Call this from /api/wizard/sync or a dedicated endpoint.
+ */
+export async function buildVendorMap(): Promise<{ total: number; clusters: number }> {
+  const rawCounts = await scanRawVendors();
+
+  // Step 1: Rule-based pre-grouping
+  const ruleGroups = new Map<string, { variants: string[]; count: number }>();
+  for (const [raw, count] of rawCounts) {
+    const key = vendorKey(raw);
+    if (!ruleGroups.has(key)) ruleGroups.set(key, { variants: [], count: 0 });
+    const g = ruleGroups.get(key)!;
+    g.variants.push(raw);
+    g.count += count;
+  }
+
+  // Pick display name per rule-group
+  const preGroups = Array.from(ruleGroups.values()).map((g) => ({
+    displayName: bestDisplayName(g.variants),
+    variants: g.variants,
+    count: g.count,
+  }));
+
+  // Step 2: Embed each group's display name
+  const names = preGroups.map((g) => g.displayName);
+  const embeddings = await embedTexts(names);
+
+  // Step 3: Greedy clustering by cosine similarity
+  // Sort by count descending — most products = likely the canonical name
+  const indexed = preGroups.map((g, i) => ({ ...g, embedding: embeddings[i], clusterId: -1 }));
+  indexed.sort((a, b) => b.count - a.count);
+
+  const clusters: { canonical: string; members: typeof indexed }[] = [];
+
+  for (const item of indexed) {
+    let merged = false;
+    for (const cluster of clusters) {
+      const sim = cosineSimilarity(item.embedding, cluster.members[0].embedding);
+      if (sim >= SIMILARITY_THRESHOLD) {
+        cluster.members.push(item);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      clusters.push({ canonical: item.displayName, members: [item] });
+    }
+  }
+
+  // Step 4: Prefix-merge — find clusters that share a common prefix and group them
+  // e.g. "Comme des Garcons Homme" + "Comme des Garcons Play" → "Comme des Garcons"
+  const MIN_PREFIX_LEN = 8; // long enough to avoid false positives
+
+  // Build a map of normalized prefix → cluster indices
+  const prefixGroups = new Map<string, number[]>();
+  for (let i = 0; i < clusters.length; i++) {
+    const key = stripDiacritics(clusters[i].canonical).toLowerCase();
+    // Try progressively shorter prefixes (split on space/hyphen)
+    const words = key.split(/[\s-]+/);
+    for (let w = words.length - 1; w >= 1; w--) {
+      const prefix = words.slice(0, w).join(" ");
+      if (prefix.length >= MIN_PREFIX_LEN) {
+        if (!prefixGroups.has(prefix)) prefixGroups.set(prefix, []);
+        prefixGroups.get(prefix)!.push(i);
+        break; // only add to the longest matching prefix
+      }
+    }
+  }
+
+  // Merge clusters that share a prefix (2+ clusters with same prefix)
+  const absorbed = new Set<number>();
+  for (const [prefix, indices] of prefixGroups) {
+    if (indices.length < 2) continue;
+    // Find the cluster with the most products as the parent, or use the prefix itself
+    const parentIdx = indices.sort((a, b) => {
+      const countA = clusters[a].members.reduce((s, m) => s + m.count, 0);
+      const countB = clusters[b].members.reduce((s, m) => s + m.count, 0);
+      return countB - countA;
+    })[0];
+    // Rename to the shared prefix (title-cased from the canonical that best matches)
+    const bestCanonical = clusters[parentIdx].canonical;
+    // Use the prefix length to trim the canonical name
+    const prefixDisplay = bestCanonical.slice(0, prefix.length);
+    clusters[parentIdx].canonical = prefixDisplay;
+
+    for (const idx of indices) {
+      if (idx === parentIdx) continue;
+      clusters[parentIdx].members.push(...clusters[idx].members);
+      absorbed.add(idx);
+    }
+  }
+  const mergedClusters = clusters.filter((_, i) => !absorbed.has(i));
+
+  // Step 5: Build raw → canonical mapping
+  const mapping = new Map<string, string>();
+  for (const cluster of mergedClusters) {
+    for (const member of cluster.members) {
+      for (const raw of member.variants) {
+        mapping.set(raw, cluster.canonical);
+      }
+    }
+  }
+
+  _vendorMap = mapping;
+  _vendorList = mergedClusters.map((c) => c.canonical).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+  _vendorMapTs = Date.now();
+
+  console.log(`[vendors] built map: ${rawCounts.size} raw → ${mergedClusters.length} brands`);
+  return { total: rawCounts.size, clusters: mergedClusters.length };
+}
+
+/** Get the raw→canonical vendor mapping, building rule-based fallback if needed */
+function getVendorMap(): Map<string, string> | null {
+  if (_vendorMap && Date.now() - _vendorMapTs < VENDOR_CACHE_TTL) {
+    return _vendorMap;
+  }
+  return null;
+}
+
+/**
+ * Get unique vendor/brand names.
+ * Uses embedding-based clusters if available, falls back to rule-based.
+ */
+export async function getUniqueVendors(): Promise<string[]> {
+  // Use embedding-based list if available
+  if (_vendorList && Date.now() - _vendorMapTs < VENDOR_CACHE_TTL) {
+    return _vendorList;
+  }
+
+  // Fallback: rule-based scan
+  const idx = getIndex();
+  const groups = new Map<string, Set<string>>();
+  let cursor: string | number = 0;
+
+  while (true) {
+    const result: RangeResult = await idx.range({
+      cursor,
+      limit: 500,
+      includeMetadata: true,
+    });
+
+    for (const item of result.vectors) {
+      const m = (item.metadata || {}) as Record<string, string>;
+      if (m.vendor) {
+        const key = vendorKey(m.vendor);
+        if (!groups.has(key)) groups.set(key, new Set());
+        groups.get(key)!.add(m.vendor);
+      }
+    }
+
+    if (!result.nextCursor || result.nextCursor === "0") break;
+    cursor = result.nextCursor;
+  }
+
+  const vendors = Array.from(groups.values())
+    .map((variants) => bestDisplayName(Array.from(variants)))
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  return vendors;
+}
+
+/**
+ * Get all products for a specific vendor/brand from the index.
+ * Uses embedding-based mapping if available, falls back to rule-based key matching.
+ */
+export async function getProductsByVendor(vendor: string): Promise<NormalizedProduct[]> {
+  const idx = getIndex();
+  const mapping = getVendorMap();
+  const targetKey = vendorKey(vendor);
+  const products: NormalizedProduct[] = [];
+  let cursor: string | number = 0;
+
+  while (true) {
+    const result: RangeResult = await idx.range({
+      cursor,
+      limit: 500,
+      includeMetadata: true,
+    });
+
+    for (const item of result.vectors) {
+      const m = (item.metadata || {}) as Record<string, string>;
+      const rawVendor = m.vendor || "";
+      // Check if this product's vendor maps to the same canonical brand
+      const matches = mapping
+        ? mapping.get(rawVendor) === vendor
+        : vendorKey(rawVendor) === targetKey;
+      if (matches) {
+        products.push({
+          name: m.name || "",
+          price: parseFloat(m.price) || 0,
+          imageUrl: m.imageUrl || "",
+          productUrl: m.productUrl || "",
+          storeName: m.storeName || "",
+          vendor: m.vendor || "",
+          description: m.description || "",
+          productType: m.productType || "",
+          tags: m.tags ? m.tags.split(",") : [],
+        });
+      }
+    }
+
+    if (!result.nextCursor || result.nextCursor === "0") break;
+    cursor = result.nextCursor;
+  }
+
+  return products;
 }
 
 /**

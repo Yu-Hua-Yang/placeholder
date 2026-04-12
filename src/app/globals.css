@@ -6,7 +6,7 @@
   --muted: #71717a;
   --border: #e4e4e7;
   --surface: #fafafa;
-  --accent: #a68a64;
+  --accent: #7dd3fc;
 }
 
 @theme inline {
@@ -15,17 +15,12 @@
   --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #e5e5e5;
-    --muted: #a1a1aa;
-    --border: #1a1a1a;
-    --surface: #0a0a0a;
-    --accent: #c4a46c;
-  }
+html, body {
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -136,6 +131,15 @@ body {
   animation: analyze-pulse 1.5s ease-in-out infinite;
 }
 
+/* ── Mockup pulse (live dot, cursor blink) ── */
+@keyframes mockup-pulse-kf {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.mockup-pulse {
+  animation: mockup-pulse-kf 1.2s ease-in-out infinite;
+}
+
 /* ── Spinner ── */
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -153,9 +157,18 @@ body {
 .reveal {
   opacity: 0;
   transform: translateY(24px);
-  transition: opacity 0.8s ease, transform 0.8s ease;
+  transition: opacity 1s ease, transform 1s ease;
 }
 .reveal.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* ── Scrollbar hide ── */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

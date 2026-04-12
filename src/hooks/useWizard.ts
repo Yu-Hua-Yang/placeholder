@@ -43,7 +43,7 @@ type WizardAction =
   | { type: "RESET" };
 
 const initialState: WizardState = {
-  currentStep: "biometric-scan",
+  currentStep: "movement-goal",
   movementGoal: "",
   questions: [],
   currentQuestionIndex: 0,
@@ -68,10 +68,10 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, currentStep: "email-gate" };
 
     case "SET_EMAIL":
-      return { ...state, email: action.email, currentStep: "movement-goal" };
+      return { ...state, email: action.email, currentStep: "questions", isLoading: true };
 
     case "SET_MOVEMENT_GOAL":
-      return { ...state, movementGoal: action.goal, currentStep: "questions", isLoading: true, error: null };
+      return { ...state, movementGoal: action.goal, currentStep: "biometric-scan", error: null };
 
     case "SET_QUESTIONS":
       return { ...state, questions: action.questions, isLoading: false };
@@ -126,8 +126,11 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   }
 }
 
-export function useWizard() {
-  const [state, dispatch] = useReducer(wizardReducer, initialState);
+export function useWizard(initialGoal?: string) {
+  const [state, dispatch] = useReducer(wizardReducer, {
+    ...initialState,
+    ...(initialGoal ? { currentStep: "biometric-scan" as WizardStep, movementGoal: initialGoal } : {}),
+  });
 
   // Pre-warm the product cache on mount
   useEffect(() => {
@@ -210,19 +213,10 @@ export function useWizard() {
   );
 
   const submitMovementGoal = useCallback(
-    async (goal: string) => {
+    (goal: string) => {
       dispatch({ type: "SET_MOVEMENT_GOAL", goal });
-      try {
-        const questions = await fetchQuestionsForGoal(goal);
-        if (!questions || questions.length === 0) {
-          throw new Error("Failed to generate questions");
-        }
-        dispatch({ type: "SET_QUESTIONS", questions });
-      } catch (err) {
-        dispatch({ type: "SET_ERROR", error: err instanceof Error ? err.message : "Failed to generate questions" });
-      }
     },
-    [fetchQuestionsForGoal],
+    [],
   );
 
   const answerQuestion = useCallback(
@@ -281,7 +275,7 @@ export function useWizard() {
     [state.recommendationResult, state.biometricImage, state.biometricResults],
   );
 
-  const submitEmail = useCallback((email: string) => {
+  const submitEmail = useCallback(async (email: string) => {
     dispatch({ type: "SET_EMAIL", email });
     // Persist to backend (fire and forget)
     fetch("/api/collect-email", {
@@ -290,7 +284,18 @@ export function useWizard() {
       body: JSON.stringify({ email }),
     }).catch(() => {});
     try { sessionStorage.setItem("aurafits_email", email); } catch {}
-  }, []);
+
+    // Fetch questions now that biometric data is available
+    try {
+      const questions = await fetchQuestionsForGoal(state.movementGoal);
+      if (!questions || questions.length === 0) {
+        throw new Error("Failed to generate questions");
+      }
+      dispatch({ type: "SET_QUESTIONS", questions });
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", error: err instanceof Error ? err.message : "Failed to generate questions" });
+    }
+  }, [fetchQuestionsForGoal, state.movementGoal]);
 
   const reset = useCallback(() => {
     dispatch({ type: "RESET" });
