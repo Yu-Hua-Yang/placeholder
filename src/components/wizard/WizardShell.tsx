@@ -114,7 +114,7 @@ export default function WizardShell({ initialGoal }: { initialGoal?: string }) {
 
   return (
     <div className="flex h-[100dvh] w-screen flex-col overflow-hidden bg-black">
-      <HeaderBar onStartOver={reset} />
+      <HeaderBar />
 
       {state.error && (
         <div className="mx-6 mt-3 border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400 sm:mx-8">
