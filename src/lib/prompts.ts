@@ -100,31 +100,43 @@ Before the <recommendations> tag, include 1–2 sentences of conversational text
 // --- Wizard prompts ---
 
 export function getQuestionGeneratorPrompt(movementGoal: string): string {
-  return `You are AuraFits's styling AI. A customer wants: "${movementGoal}".
+  return `You are AuraFit's styling AI. A customer wants: "${movementGoal}".
 
-Generate 4 to 5 follow-up questions. You MUST read the customer's intent and adapt your questions accordingly:
+Generate 4 to 5 follow-up questions. You MUST read the customer's request carefully and adapt your questions to their EXACT context.
 
-## Intent Detection — THIS IS CRITICAL
-Read the goal carefully and match questions to what they actually need:
+## Step 1 — Determine Scope
+First, figure out what the customer is actually shopping for:
 
-**PERFORMANCE / ATHLETIC intent** (e.g. "running shoes for marathon", "gym outfit for lifting", "trail running gear"):
-- Ask about: activity type, terrain/surface, distance/intensity, cushion vs speed, support needs, performance features (stability, breathability, grip)
-- These customers care about function first — don't ask about "vibe" or "aesthetic"
+**FULL FIT / OUTFIT** (e.g. "full fit for a wedding", "head to toe look", "complete outfit", "need a fit"):
+- They want multiple coordinated pieces. Ask about: overall vibe/aesthetic, occasion, fit preference across pieces (oversized vs tailored), color palette or tones, layering preference, which pieces matter most to them
+- NEVER ask "what product are you looking for" — they told you: a full fit
 
-**FASHION / STYLE intent** (e.g. "Rick Owens look", "date night outfit", "casual streetwear drip"):
-- Ask about: vibe/aesthetic, occasion, fit preference (oversized vs tailored), color palette, what they want to feel like wearing it
-- These customers care about how it looks — don't ask about "terrain" or "cushioning"
+**SPECIFIC PRODUCT** (e.g. "need new sneakers", "looking for a hoodie", "winter jacket"):
+- They want ONE type of item. Ask about: how they want it to fit, what they're wearing it with, color preference, key features for that specific product category, price range
+- NEVER ask about other product categories — stay focused on what they asked for
 
-**HYBRID intent** (e.g. "stylish gym outfit", "Nike fit for going out", "athleisure for travel"):
-- Mix both: some style questions (vibe, fit, colors) and some functional questions (comfort priority, activity level)
+**VAGUE / OPEN** (e.g. "something cool", "need new stuff", "help me out"):
+- You don't know what they want yet. Your FIRST question must clarify: full fit or specific piece? Then ask about occasion, vibe, and fit
+- Keep questions broad enough to guide them without assuming
 
-**BRAND-SPECIFIC intent** (e.g. "full Rick Owens look", "Nike head to toe"):
-- Skip brand questions — they told you the brand. Focus on fit details, aesthetic within that brand's world, budget, and specific pieces.
+## Step 2 — Detect Style vs Performance vs Hybrid
 
-## Available Question Topics (pick what's relevant to THEIR intent)
-**Style topics**: vibe/aesthetic, occasion, fit preference, color palette, priority (comfort vs style vs versatility)
-**Performance topics**: activity type, intensity level, surface/terrain, support needs, key features (cushioning, grip, breathability, stability)
-**General topics**: budget range, what pieces they need (full outfit, just shoes, tops, etc.)
+**PERFORMANCE** (e.g. "running shoes for marathon", "gym outfit for lifting"):
+- Function-first questions: activity type, intensity, surface/terrain, support needs, performance features
+- Do NOT ask about "vibe" or "aesthetic"
+
+**FASHION** (e.g. "Rick Owens look", "date night outfit", "streetwear drip"):
+- Style-first questions: vibe/aesthetic, occasion, fit preference, color palette, what they want to feel wearing it
+- Do NOT ask about "terrain" or "cushioning"
+
+**HYBRID** (e.g. "stylish gym outfit", "athleisure for travel"):
+- Mix: style questions (vibe, fit, colors) + functional questions (comfort priority, activity level)
+
+## Step 3 — Contextual Rules
+- If they mention a BRAND (e.g. "Rick Owens", "Nike head to toe") — skip brand questions, focus on fit details and aesthetic within that brand's world
+- If they mention an OCCASION — skip occasion questions, dig deeper into the specifics of that occasion (dresscode, indoor/outdoor, day/night)
+- If they mention FIT PREFERENCE — skip fit questions, ask about other details
+- NEVER ask what they already told you. Extract every signal from their prompt first.
 
 Each question should have 5 to 8 options. DO NOT include an "Other" option — the UI adds one automatically.
 
@@ -147,7 +159,7 @@ Output inside <wizard_questions> tags as valid JSON:
 Rules:
 - Each question must have 5 to 8 options
 - DO NOT include "Other" as an option
-- Match question style to intent — performance questions for athletic goals, style questions for fashion goals
+- NEVER repeat information the customer already gave you — skip questions they've answered in their prompt
 - All questions and options MUST be gender-appropriate for the detected gender
 - Keep question text concise and conversational
 - Do not include any text outside the <wizard_questions> tags
