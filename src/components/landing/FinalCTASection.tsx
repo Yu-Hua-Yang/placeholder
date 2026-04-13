@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 interface FinalCTASectionProps {
   onStart: () => void;
 }
@@ -9,22 +11,12 @@ export default function FinalCTASection({ onStart }: FinalCTASectionProps) {
     <>
       <section className="relative overflow-hidden bg-zinc-950 px-5 py-20 text-center sm:px-6 sm:py-36">
         {/* Background fashion imagery */}
-        <div className="absolute inset-0">
-          <div className="absolute -left-6 top-[10%] w-[220px] sm:w-[300px] rotate-[-5deg] opacity-[0.1]">
-            <img
-              src="/images/showcase-1.jpg"
-              alt=""
-              className="h-auto w-full rounded-lg object-cover"
-              aria-hidden="true"
-            />
+        <div className="absolute inset-0 hidden sm:block" aria-hidden="true">
+          <div className="absolute -left-6 top-[10%] w-[300px] rotate-[-5deg] opacity-[0.1]">
+            <Image src="/images/showcase-1.jpg" alt="" width={300} height={400} className="rounded-lg object-cover" loading="lazy" quality={30} />
           </div>
-          <div className="absolute -right-6 bottom-[5%] w-[240px] sm:w-[320px] rotate-[4deg] opacity-[0.1]">
-            <img
-              src="/images/showcase-3.jpg"
-              alt=""
-              className="h-auto w-full rounded-lg object-cover"
-              aria-hidden="true"
-            />
+          <div className="absolute -right-6 bottom-[5%] w-[320px] rotate-[4deg] opacity-[0.1]">
+            <Image src="/images/showcase-3.jpg" alt="" width={320} height={430} className="rounded-lg object-cover" loading="lazy" quality={30} />
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 
 const CARDS = [
   {
@@ -113,10 +114,14 @@ export default function ShowcaseSection({ onStartWithGoal }: ShowcaseSectionProp
               className="group relative flex-shrink-0 w-[85vw] snap-center overflow-hidden rounded-2xl text-left cursor-pointer sm:w-80"
             >
               <div className="aspect-[3/5] sm:aspect-[3/4] relative">
-                <img
+                <Image
                   src={card.image}
                   alt={card.label}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  fill
+                  sizes="(max-width: 640px) 85vw, 320px"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  loading="lazy"
+                  quality={60}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute bottom-0 p-6">

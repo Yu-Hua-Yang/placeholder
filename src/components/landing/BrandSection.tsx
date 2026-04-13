@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { slugify } from "@/lib/brand-utils";
 
 /* ── Brand logo SVGs (sourced from official brand websites) ── */
@@ -88,10 +89,14 @@ export default function BrandSection({ onStartWithGoal }: BrandSectionProps) {
                 key={brand.name}
                 className="reveal group relative aspect-[3/4] overflow-hidden rounded-xl sm:aspect-auto sm:row-span-2"
               >
-                <img
+                <Image
                   src={brand.image}
                   alt={brand.name}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  fill
+                  sizes="(max-width: 640px) 100vw, 33vw"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  loading="lazy"
+                  quality={60}
                 />
                 <div className="absolute inset-0 bg-black/30 transition-colors duration-500 group-hover:bg-black/20" />
 
@@ -125,10 +130,14 @@ export default function BrandSection({ onStartWithGoal }: BrandSectionProps) {
                 key={brand.name}
                 className="reveal group relative aspect-[3/4] overflow-hidden rounded-xl sm:aspect-auto sm:row-span-2"
               >
-                <img
+                <Image
                   src={brand.image}
                   alt={brand.name}
-                  className="absolute inset-0 h-full w-full object-cover grayscale-[30%]"
+                  fill
+                  sizes="(max-width: 640px) 100vw, 33vw"
+                  className="object-cover grayscale-[30%]"
+                  loading="lazy"
+                  quality={40}
                 />
                 <div className="absolute inset-0 bg-black/50" />
 

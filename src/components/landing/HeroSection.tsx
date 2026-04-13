@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 interface HeroSectionProps {
   onStartWithGoal: (goal: string) => void;
@@ -32,49 +33,22 @@ export default function HeroSection({ onStartWithGoal }: HeroSectionProps) {
 
   return (
     <section id="hero" className="relative h-[100dvh] w-full overflow-hidden bg-zinc-950">
-      {/* Fashion imagery — moody editorial picks only */}
-      <div className="absolute inset-0">
-        <div className="absolute -left-10 top-[8%] hidden w-[340px] rotate-[-4deg] opacity-[0.15] sm:block">
-          <img
-            src="/images/showcase-1.jpg"
-            alt=""
-            className="h-auto w-full rounded-lg object-cover"
-            aria-hidden="true"
-          />
+      {/* Fashion imagery — moody editorial picks, hidden on mobile */}
+      <div className="absolute inset-0 hidden sm:block" aria-hidden="true">
+        <div className="absolute -left-10 top-[8%] w-[340px] rotate-[-4deg] opacity-[0.15]">
+          <Image src="/images/showcase-1.jpg" alt="" width={340} height={450} className="rounded-lg object-cover" loading="lazy" quality={30} />
         </div>
-        <div className="absolute left-[12%] bottom-[6%] hidden w-[260px] rotate-[3deg] opacity-[0.1] sm:block">
-          <img
-            src="/images/showcase-4.jpg"
-            alt=""
-            className="h-auto w-full rounded-lg object-cover"
-            aria-hidden="true"
-          />
+        <div className="absolute left-[12%] bottom-[6%] w-[260px] rotate-[3deg] opacity-[0.1]">
+          <Image src="/images/showcase-4.jpg" alt="" width={260} height={350} className="rounded-lg object-cover" loading="lazy" quality={30} />
         </div>
-
-        <div className="absolute -right-8 top-[5%] hidden w-[320px] rotate-[5deg] opacity-[0.15] sm:block">
-          <img
-            src="/images/showcase-3.jpg"
-            alt=""
-            className="h-auto w-full rounded-lg object-cover"
-            aria-hidden="true"
-          />
+        <div className="absolute -right-8 top-[5%] w-[320px] rotate-[5deg] opacity-[0.15]">
+          <Image src="/images/showcase-3.jpg" alt="" width={320} height={430} className="rounded-lg object-cover" loading="lazy" quality={30} />
         </div>
-        <div className="absolute right-[10%] bottom-[10%] hidden w-[280px] rotate-[-3deg] opacity-[0.12] sm:block">
-          <img
-            src="/images/step-snap.jpg"
-            alt=""
-            className="h-auto w-full rounded-lg object-cover"
-            aria-hidden="true"
-          />
+        <div className="absolute right-[10%] bottom-[10%] w-[280px] rotate-[-3deg] opacity-[0.12]">
+          <Image src="/images/step-snap.jpg" alt="" width={280} height={370} className="rounded-lg object-cover" loading="lazy" quality={30} />
         </div>
-
-        <div className="absolute left-1/2 top-[18%] w-[250px] -translate-x-1/2 opacity-[0.06] sm:w-[400px]">
-          <img
-            src="/images/hero.jpg"
-            alt=""
-            className="h-auto w-full rounded-lg object-cover"
-            aria-hidden="true"
-          />
+        <div className="absolute left-1/2 top-[18%] w-[400px] -translate-x-1/2 opacity-[0.06]">
+          <Image src="/images/hero.jpg" alt="" width={400} height={530} className="rounded-lg object-cover" loading="lazy" quality={20} />
         </div>
       </div>
 
