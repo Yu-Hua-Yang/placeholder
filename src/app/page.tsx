@@ -13,7 +13,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-200">
-      <WizardShell initialGoal={goal} />
+      <WizardShell initialGoal={goal} onStartOver={() => setGoal(null)} />
     </div>
   );
 }

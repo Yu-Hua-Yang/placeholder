@@ -1,22 +1,21 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-
-export default function HeaderBar() {
-  const router = useRouter();
-
+export default function HeaderBar({ onStartOver }: { onStartOver?: () => void }) {
   const handleStartOver = () => {
     if (window.confirm("Start over? Your current progress will be lost.")) {
-      router.push("/");
-      router.refresh();
+      onStartOver?.();
     }
   };
 
   return (
     <div className="flex items-center justify-between border-b border-zinc-900 px-4 py-3 sm:px-8 sm:py-4">
-      <span className="text-xl font-serif font-light italic text-white sm:text-2xl">
+      <button
+        type="button"
+        onClick={handleStartOver}
+        className="text-xl font-serif font-light italic text-white sm:text-2xl hover:text-zinc-300 transition-colors"
+      >
         AuraFits
-      </span>
+      </button>
       <button
         type="button"
         onClick={handleStartOver}
