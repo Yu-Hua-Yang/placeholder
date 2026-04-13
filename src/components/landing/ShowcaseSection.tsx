@@ -104,7 +104,7 @@ export default function ShowcaseSection({ onStartWithGoal }: ShowcaseSectionProp
         {/* Scroll container */}
         <div
           ref={scrollRef}
-          className="scrollbar-hide flex gap-4 overflow-x-auto snap-x snap-mandatory px-6 pb-4 sm:px-16"
+          className="scrollbar-hide flex gap-4 overflow-x-auto snap-x snap-proximity px-6 pb-4 sm:px-16 will-change-scroll"
         >
           {CARDS.map((card) => (
             <button
@@ -119,7 +119,7 @@ export default function ShowcaseSection({ onStartWithGoal }: ShowcaseSectionProp
                   alt={card.label}
                   fill
                   sizes="(max-width: 640px) 85vw, 320px"
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  className="object-cover sm:transition-transform sm:duration-700 sm:group-hover:scale-105"
                   loading="lazy"
                   quality={60}
                 />

@@ -172,3 +172,9 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ── GPU-promoted scroll ── */
+.will-change-scroll {
+  will-change: scroll-position;
+  -webkit-overflow-scrolling: touch;
+}
