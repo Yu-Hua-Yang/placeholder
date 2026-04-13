@@ -1,5 +1,3 @@
-"use client";
-
 export default function Footer() {
   return (
     <footer className="relative overflow-hidden border-t border-zinc-200 bg-white px-5 py-12 sm:px-12 sm:py-16 lg:px-20">

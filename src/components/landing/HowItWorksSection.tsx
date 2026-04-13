@@ -1,5 +1,3 @@
-"use client";
-
 /* ── Sleek phone mockups of the actual wizard UI ── */
 
 function PhoneFrame({ children }: { children: React.ReactNode }) {

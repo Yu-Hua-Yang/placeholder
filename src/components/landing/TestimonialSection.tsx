@@ -1,5 +1,3 @@
-"use client";
-
 function Star() {
   return (
     <svg
