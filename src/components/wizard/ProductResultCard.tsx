@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
+import Image from "next/image";
 import type { WizardRecommendedProduct } from "@/lib/types";
 
 interface ProductResultCardProps {
@@ -9,9 +10,8 @@ interface ProductResultCardProps {
   archetype?: string;
 }
 
-export default function ProductResultCard({ product, isTopPick, archetype }: ProductResultCardProps) {
+export default memo(function ProductResultCard({ product, isTopPick, archetype }: ProductResultCardProps) {
   const [imgError, setImgError] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
   const isPartner = product.source === "partner";
   const imageUrl = product.imageUrl || "";
 
@@ -43,21 +43,16 @@ export default function ProductResultCard({ product, isTopPick, archetype }: Pro
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-zinc-950">
         {!imgError && imageUrl ? (
-          <>
-            {!imgLoaded && <div className="skeleton absolute inset-0" />}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageUrl}
-              alt={product.name}
-              className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-105 ${
-                imgLoaded ? "opacity-100" : "opacity-0"
-              }`}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgError(true)}
-            />
-          </>
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            className="object-cover transition-all duration-500 group-hover:scale-105"
+            onError={() => setImgError(true)}
+          />
         ) : (
-          <div className="flex h-full items-center justify-center text-zinc-800">
+          <div className="flex h-full items-center justify-center text-white">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
               <circle cx="8.5" cy="8.5" r="1.5" />
@@ -143,4 +138,4 @@ export default function ProductResultCard({ product, isTopPick, archetype }: Pro
       </div>
     </div>
   );
-}
+});

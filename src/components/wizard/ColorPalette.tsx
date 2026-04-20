@@ -1,5 +1,3 @@
-"use client";
-
 import type { ColorPaletteEntry } from "@/lib/types";
 
 interface ColorPaletteProps {

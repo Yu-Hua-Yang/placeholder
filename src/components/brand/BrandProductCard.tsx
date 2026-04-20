@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
+import Image from "next/image";
 import PairsWithSection from "./PairsWithSection";
 
 interface BrandProductCardProps {
@@ -14,7 +15,7 @@ interface BrandProductCardProps {
   tags: string[];
 }
 
-export default function BrandProductCard({
+export default memo(function BrandProductCard({
   name,
   price,
   imageUrl,
@@ -25,8 +26,8 @@ export default function BrandProductCard({
   tags,
 }: BrandProductCardProps) {
   const [imgError, setImgError] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [hasExpanded, setHasExpanded] = useState(false);
 
   return (
     <div
@@ -36,25 +37,22 @@ export default function BrandProductCard({
     >
       {/* Clickable card area — expands pairings */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => { setExpanded(!expanded); if (!expanded) setHasExpanded(true); }}
+        aria-expanded={expanded}
         className="group text-left"
       >
         {/* Image */}
         <div className="relative aspect-square overflow-hidden bg-zinc-900">
           {!imgError && imageUrl ? (
-            <>
-              {!imgLoaded && <div className="skeleton absolute inset-0" />}
-              <img
-                src={imageUrl}
-                alt={name}
-                loading="lazy"
-                className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 group-hover:scale-105 ${
-                  imgLoaded ? "opacity-100" : "opacity-0"
-                }`}
-                onLoad={() => setImgLoaded(true)}
-                onError={() => setImgError(true)}
-              />
-            </>
+            <Image
+              src={imageUrl}
+              alt={name}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-all duration-700 group-hover:scale-105"
+              loading="lazy"
+              onError={() => setImgError(true)}
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-zinc-700">
               <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -90,17 +88,17 @@ export default function BrandProductCard({
         Shop →
       </a>
 
-      {/* Pairings — appears inline when expanded */}
-      {expanded && (
-        <div className="border-t border-zinc-800 px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
+      {/* Pairings — stays mounted once expanded, hidden when collapsed */}
+      <div className={expanded ? "border-t border-zinc-800 px-3 pb-3 pt-3 sm:px-4 sm:pb-4" : "hidden"}>
+        {hasExpanded && (
           <PairsWithSection
             productName={name}
             productType={productType}
             tags={tags}
             storeName={storeName}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
-}
+});

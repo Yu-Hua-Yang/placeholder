@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { WizardQuestion, WizardAnswer } from "@/lib/types";
 import OptionButton from "./OptionButton";
 import AnswerBadges from "./AnswerBadges";
@@ -25,6 +25,24 @@ export default function QuestionCardStep({
   const [showOtherInput, setShowOtherInput] = useState(false);
   const question = questions[currentQuestionIndex];
 
+  const handleSelect = useCallback((value: string) => {
+    if (value === "__other__") {
+      setShowOtherInput(true);
+      return;
+    }
+    if (!question) return;
+    const selected = question.options.find((o) => o.value === value);
+    if (!selected) return;
+    setShowOtherInput(false);
+    setOtherText("");
+    onAnswer({
+      questionId: question.id,
+      questionText: question.questionText,
+      selectedLabel: selected.label,
+      selectedValue: selected.value,
+    });
+  }, [question, onAnswer]);
+
   if (isLoading || !question) {
     return (
       <div className="flex h-full flex-col">
@@ -47,23 +65,6 @@ export default function QuestionCardStep({
       </div>
     );
   }
-
-  const handleSelect = (value: string) => {
-    if (value === "__other__") {
-      setShowOtherInput(true);
-      return;
-    }
-    const selected = question.options.find((o) => o.value === value);
-    if (!selected) return;
-    setShowOtherInput(false);
-    setOtherText("");
-    onAnswer({
-      questionId: question.id,
-      questionText: question.questionText,
-      selectedLabel: selected.label,
-      selectedValue: selected.value,
-    });
-  };
 
   const handleOtherSubmit = (e: React.FormEvent) => {
     e.preventDefault();

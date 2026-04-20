@@ -48,37 +48,49 @@ export default function ProductTeaser({ className = "" }: ProductTeaserProps) {
   const [nextReady, setNextReady] = useState(true);
   const preloadRef = useRef<HTMLImageElement | null>(null);
 
+  const fetchedRef = useRef(false);
+
   useEffect(() => {
-    if (products.length > 0) return;
+    if (products.length > 0 || fetchedRef.current) return;
+    fetchedRef.current = true;
     fetchTeasers().then((p) => {
       if (p.length > 0) setProducts(p);
     });
-  }, [products.length]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (products.length === 0) return;
     const interval = setInterval(() => {
-      const nextIdx = (activeIndex + 1) % products.length;
+      setActiveIndex((prev) => {
+        const nextIdx = (prev + 1) % products.length;
 
-      // Preload next image before transitioning
-      const img = new Image();
-      preloadRef.current = img;
-      img.onload = () => {
-        setPrevIndex(activeIndex);
-        setActiveIndex(nextIdx);
-        setNextReady(true);
-      };
-      img.onerror = () => {
-        // Skip to next even if load fails
-        setPrevIndex(activeIndex);
-        setActiveIndex(nextIdx);
-        setNextReady(true);
-      };
-      setNextReady(false);
-      img.src = products[nextIdx].imageUrl;
+        // Preload next image before transitioning
+        const img = new window.Image();
+        preloadRef.current = img;
+        img.onload = () => {
+          setPrevIndex(prev);
+          setNextReady(true);
+        };
+        img.onerror = () => {
+          setPrevIndex(prev);
+          setNextReady(true);
+        };
+        setNextReady(false);
+        img.src = products[nextIdx].imageUrl;
+
+        return nextIdx;
+      });
     }, 3500);
-    return () => clearInterval(interval);
-  }, [products.length, activeIndex]);
+    return () => {
+      clearInterval(interval);
+      if (preloadRef.current) {
+        preloadRef.current.onload = null;
+        preloadRef.current.onerror = null;
+        preloadRef.current.src = "";
+        preloadRef.current = null;
+      }
+    };
+  }, [products.length]);
 
   const product = products[activeIndex];
   const prevProduct = products[prevIndex];

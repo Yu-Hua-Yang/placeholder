@@ -1,8 +1,6 @@
-"use client";
-
-import Link from "next/link";
 import Image from "next/image";
-import { slugify } from "@/lib/brand-utils";
+import BrandCardActive from "./BrandCardActive";
+import RevealOnScroll from "@/components/ui/RevealOnScroll";
 
 /* ── Brand logo SVGs (sourced from official brand websites) ── */
 
@@ -95,9 +93,9 @@ export default function BrandSection({ onStartWithGoal }: BrandSectionProps) {
         <div className="mt-14 grid grid-cols-1 gap-4 sm:mt-20 sm:grid-cols-3 sm:grid-rows-[200px_200px_200px_200px] sm:gap-4">
           {BRANDS.map((brand) =>
             brand.active ? (
-              <div
+              <RevealOnScroll
                 key={brand.name}
-                className="reveal group relative aspect-[3/4] overflow-hidden rounded-xl sm:aspect-auto sm:row-span-2"
+                className="group relative aspect-[3/4] overflow-hidden rounded-xl sm:aspect-auto sm:row-span-2"
               >
                 <Image
                   src={brand.image}
@@ -116,29 +114,16 @@ export default function BrandSection({ onStartWithGoal }: BrandSectionProps) {
                 </div>
 
                 {/* Pre-filled prompt + explore */}
-                <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-3 sm:p-5">
-                  <button
-                    type="button"
-                    onClick={() => onStartWithGoal(brand.prompt)}
-                    className="group/btn flex w-full items-center gap-2 rounded-full border border-white/20 bg-black/40 px-4 py-2.5 backdrop-blur-md transition-colors hover:border-white/50 hover:bg-black/60 sm:px-5 sm:py-3"
-                  >
-                    <span className="flex-1 truncate text-left text-[11px] text-white/70 sm:text-xs">{brand.prompt}</span>
-                    <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-black transition-colors group-hover/btn:bg-zinc-200 sm:px-4 sm:py-1.5 sm:text-[10px]">
-                      Go
-                    </span>
-                  </button>
-                  <Link
-                    href={`/brands/${slugify(brand.name)}`}
-                    className="text-[10px] font-medium tracking-[0.15em] uppercase text-white/50 transition-colors hover:text-white sm:text-[11px]"
-                  >
-                    Explore products →
-                  </Link>
-                </div>
-              </div>
+                <BrandCardActive
+                  brandName={brand.name}
+                  prompt={brand.prompt}
+                  onStartWithGoal={onStartWithGoal}
+                />
+              </RevealOnScroll>
             ) : (
-              <div
+              <RevealOnScroll
                 key={brand.name}
-                className="reveal group relative aspect-[3/4] overflow-hidden rounded-xl sm:aspect-auto sm:row-span-2"
+                className="group relative aspect-[3/4] overflow-hidden rounded-xl sm:aspect-auto sm:row-span-2"
               >
                 <Image
                   src={brand.image}
@@ -158,7 +143,7 @@ export default function BrandSection({ onStartWithGoal }: BrandSectionProps) {
                     Coming soon
                   </span>
                 </div>
-              </div>
+              </RevealOnScroll>
             )
           )}
         </div>

@@ -3,8 +3,14 @@ export const maxDuration = 300;
 import { NextResponse } from "next/server";
 import { fetchAllProducts } from "@/lib/shopify-stores";
 import { syncProducts, buildVendorMap } from "@/lib/vector-store";
+import { isAuthorized } from "@/lib/auth";
+import { env } from "@/lib/env";
 
-export async function POST() {
+export async function POST(req: Request) {
+  if (!isAuthorized(req.headers.get("authorization"), env.CRON_SECRET)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     console.log("[sync] fetching all products from Shopify stores...");
     const products = await fetchAllProducts();

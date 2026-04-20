@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
 import type { InteractiveOption, ProductSearchQuery, WizardQuestion, BiometricResult, ExternalProduct, RecommendationResult } from "./types";
 import type { ProductRecommendation, WizardProductRecommendation } from "./prompts";
+import { env } from "./env";
 
 const MODEL = "gemini-3-flash-preview";
 const EMBEDDING_MODEL = "gemini-embedding-001";
@@ -9,7 +10,7 @@ let client: GoogleGenerativeAI | null = null;
 
 function getClient(): GoogleGenerativeAI {
   if (!client) {
-    client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   }
   return client;
 }
@@ -83,18 +84,24 @@ export function streamChat(
 export async function chatComplete(
   systemPrompt: string,
   messages: GeminiMessage[],
+  options?: { maxOutputTokens?: number },
 ): Promise<string> {
   const model = getClient().getGenerativeModel({
     model: MODEL,
     systemInstruction: systemPrompt,
     generationConfig: {
-      maxOutputTokens: 8192,
+      maxOutputTokens: options?.maxOutputTokens ?? 8192,
     },
   });
 
   const result = await model.generateContent({
     contents: messages,
   });
+
+  const finishReason = result.response.candidates?.[0]?.finishReason;
+  if (finishReason === "MAX_TOKENS") {
+    console.warn(`[gemini] output truncated (MAX_TOKENS) — consider increasing maxOutputTokens`);
+  }
 
   return result.response.text();
 }
@@ -145,10 +152,70 @@ const TAG_PATTERNS = {
   recommendations: /<recommendations>([\s\S]*?)<\/recommendations>/g,
 } as const;
 
-function safeJsonParse<T>(json: string, label: string): T | null {
+// Pre-compiled regexes for parseResponse (avoids re-creation on every call)
+const OPTIONS_REGEX = /<options>([\s\S]*?)<\/options>/g;
+const RTR_REGEX = /<ready_to_recommend>([\s\S]*?)<\/ready_to_recommend>/g;
+const REC_REGEX = /<recommendations>([\s\S]*?)<\/recommendations>/g;
+
+/**
+ * Attempt to repair truncated JSON arrays.
+ * If the JSON was cut off mid-array, tries to close open braces/brackets
+ * and parse the complete items we do have.
+ */
+function repairTruncatedJson(json: string): string | null {
+  let trimmed = json.trim();
+  if (!trimmed.startsWith("[")) return null;
+
+  // Walk backwards to find the last complete object (ends with "}")
+  const lastCloseBrace = trimmed.lastIndexOf("}");
+  if (lastCloseBrace === -1) return null;
+
+  // Truncate after the last complete object and close the array
+  trimmed = trimmed.slice(0, lastCloseBrace + 1);
+
+  // Remove any trailing comma
+  trimmed = trimmed.replace(/,\s*$/, "");
+
+  // Close the array
+  if (!trimmed.endsWith("]")) trimmed += "]";
+
   try {
-    return JSON.parse(json) as T;
+    JSON.parse(trimmed);
+    return trimmed;
   } catch {
+    return null;
+  }
+}
+
+function safeJsonParse<T>(
+  json: string,
+  label: string,
+  validate?: (data: unknown) => data is T,
+): T | null {
+  let toParse = json;
+  try {
+    const parsed = JSON.parse(toParse);
+    if (validate && !validate(parsed)) {
+      console.warn(`[parse] ${label}: validation failed`, JSON.stringify(parsed).slice(0, 200));
+      return null;
+    }
+    return parsed as T;
+  } catch {
+    // Attempt truncated JSON repair for arrays
+    const repaired = repairTruncatedJson(toParse);
+    if (repaired) {
+      try {
+        const parsed = JSON.parse(repaired);
+        console.warn(`[parse] ${label}: repaired truncated JSON (recovered ${Array.isArray(parsed) ? parsed.length : "?"} items)`);
+        if (validate && !validate(parsed)) {
+          console.warn(`[parse] ${label}: repaired JSON failed validation`);
+          return null;
+        }
+        return parsed as T;
+      } catch {
+        // repair also failed
+      }
+    }
     console.warn(`Failed to parse ${label} JSON:`, json.slice(0, 200));
     return null;
   }
@@ -161,18 +228,18 @@ export function parseResponse(text: string): ParsedResponse {
 
   let match: RegExpExecArray | null;
 
-  const optionsRegex = new RegExp(TAG_PATTERNS.options.source, "g");
-  while ((match = optionsRegex.exec(text)) !== null) {
+  OPTIONS_REGEX.lastIndex = 0;
+  while ((match = OPTIONS_REGEX.exec(text)) !== null) {
     options = safeJsonParse<InteractiveOption[]>(match[1], "options");
   }
 
-  const rtrRegex = new RegExp(TAG_PATTERNS.readyToRecommend.source, "g");
-  while ((match = rtrRegex.exec(text)) !== null) {
+  RTR_REGEX.lastIndex = 0;
+  while ((match = RTR_REGEX.exec(text)) !== null) {
     readyToRecommend = safeJsonParse<ProductSearchQuery>(match[1], "ready_to_recommend");
   }
 
-  const recRegex = new RegExp(TAG_PATTERNS.recommendations.source, "g");
-  while ((match = recRegex.exec(text)) !== null) {
+  REC_REGEX.lastIndex = 0;
+  while ((match = REC_REGEX.exec(text)) !== null) {
     recommendations = safeJsonParse<ProductRecommendation[]>(match[1], "recommendations");
   }
 

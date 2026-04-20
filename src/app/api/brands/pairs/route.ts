@@ -13,6 +13,15 @@ export async function POST(request: Request) {
     const body = (await request.json()) as PairsRequest;
     const { productName, productType, storeName } = body;
 
+    if (
+      !productName || typeof productName !== "string" || productName.length > 500 ||
+      !productType || typeof productType !== "string" || productType.length > 200 ||
+      !storeName || typeof storeName !== "string" || storeName.length > 200 ||
+      !Array.isArray(body.tags)
+    ) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
     // Build a query that finds complementary items
     const sourceCategory = classifyCategory({
       name: productName,

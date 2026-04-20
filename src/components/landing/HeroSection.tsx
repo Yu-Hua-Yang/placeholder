@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 
 interface HeroSectionProps {
@@ -24,31 +24,46 @@ const STATS = [
 
 export default function HeroSection({ onStartWithGoal }: HeroSectionProps) {
   const [input, setInput] = useState("");
+  const [shaking, setShaking] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
+    };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (text) onStartWithGoal(text);
+    if (!text) {
+      setShaking(true);
+      inputRef.current?.focus();
+      shakeTimeoutRef.current = setTimeout(() => setShaking(false), 500);
+      return;
+    }
+    onStartWithGoal(text);
   };
 
   return (
     <section id="hero" className="relative h-[100dvh] w-full overflow-hidden bg-zinc-950">
       {/* Fashion imagery — moody editorial picks, hidden on mobile */}
       <div className="absolute inset-0 hidden sm:block" aria-hidden="true">
-        <div className="absolute -left-10 top-[8%] w-[340px] rotate-[-4deg] opacity-[0.15]">
-          <Image src="/images/showcase-1.jpg" alt="" width={340} height={450} className="rounded-lg object-cover" loading="lazy" quality={30} />
+        <div className="absolute -left-10 top-[8%] w-[340px] rotate-[-4deg] opacity-[0.15]" style={{ aspectRatio: "340/450" }}>
+          <Image src="/images/showcase-1.jpg" alt="" fill className="rounded-lg object-cover" loading="eager" quality={30} sizes="340px" />
         </div>
-        <div className="absolute left-[12%] bottom-[6%] w-[260px] rotate-[3deg] opacity-[0.1]">
-          <Image src="/images/showcase-4.jpg" alt="" width={260} height={350} className="rounded-lg object-cover" loading="lazy" quality={30} />
+        <div className="absolute left-[12%] bottom-[6%] w-[260px] rotate-[3deg] opacity-[0.1]" style={{ aspectRatio: "260/350" }}>
+          <Image src="/images/showcase-4.jpg" alt="" fill className="rounded-lg object-cover" loading="lazy" quality={30} sizes="260px" />
         </div>
-        <div className="absolute -right-8 top-[5%] w-[320px] rotate-[5deg] opacity-[0.15]">
-          <Image src="/images/showcase-3.jpg" alt="" width={320} height={430} className="rounded-lg object-cover" loading="lazy" quality={30} />
+        <div className="absolute -right-8 top-[5%] w-[320px] rotate-[5deg] opacity-[0.15]" style={{ aspectRatio: "320/430" }}>
+          <Image src="/images/showcase-3.jpg" alt="" fill className="rounded-lg object-cover" loading="eager" quality={30} sizes="320px" />
         </div>
-        <div className="absolute right-[10%] bottom-[10%] w-[280px] rotate-[-3deg] opacity-[0.12]">
-          <Image src="/images/step-snap.jpg" alt="" width={280} height={370} className="rounded-lg object-cover" loading="lazy" quality={30} />
+        <div className="absolute right-[10%] bottom-[10%] w-[280px] rotate-[-3deg] opacity-[0.12]" style={{ aspectRatio: "280/370" }}>
+          <Image src="/images/step-snap.jpg" alt="" fill className="rounded-lg object-cover" loading="lazy" quality={30} sizes="280px" />
         </div>
-        <div className="absolute left-1/2 top-[18%] w-[400px] -translate-x-1/2 opacity-[0.06]">
-          <Image src="/images/hero.jpg" alt="" width={400} height={530} className="rounded-lg object-cover" loading="lazy" quality={20} />
+        <div className="absolute left-1/2 top-[18%] w-[400px] -translate-x-1/2 opacity-[0.06]" style={{ aspectRatio: "400/530" }}>
+          <Image src="/images/hero.jpg" alt="" fill className="rounded-lg object-cover" quality={20} sizes="400px" />
         </div>
       </div>
 
@@ -96,8 +111,10 @@ export default function HeroSection({ onStartWithGoal }: HeroSectionProps) {
 
         {/* Prompt input */}
         <form onSubmit={handleSubmit} className="mt-10 w-full max-w-xl mx-auto">
-          <div className="relative rounded-full border border-zinc-700 bg-zinc-900/60 backdrop-blur-sm transition-colors focus-within:border-white focus-within:bg-zinc-900/80">
+          <div className={`relative rounded-full border border-zinc-700 bg-zinc-900/60 backdrop-blur-sm transition-colors focus-within:border-white focus-within:bg-zinc-900/80${shaking ? " animate-shake border-red-500/50" : ""}`}>
+            <label htmlFor="hero-input" className="sr-only">What do you want to wear?</label>
             <input
+              ref={inputRef}
               id="hero-input"
               type="text"
               value={input}

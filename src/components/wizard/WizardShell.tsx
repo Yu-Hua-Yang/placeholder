@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, Component } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { useWizard } from "@/hooks/useWizard";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import HeaderBar from "./HeaderBar";
 import MovementGoalStep from "./MovementGoalStep";
 import QuestionCardStep from "./QuestionCardStep";
@@ -10,41 +10,6 @@ import BiometricScanStep from "./BiometricScanStep";
 import ScanResultsStep from "./ScanResultsStep";
 import ProductResultsStep from "./ProductResultsStep";
 import EmailGate from "./EmailGate";
-
-class ErrorBoundary extends Component<
-  { children: ReactNode; onReset: () => void },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; onReset: () => void }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-          <p className="text-lg font-medium text-zinc-400">Something went wrong.</p>
-          <button
-            type="button"
-            onClick={() => {
-              this.setState({ hasError: false });
-              this.props.onReset();
-            }}
-            className="bg-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-zinc-200"
-          >
-            Start over
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 export default function WizardShell({ initialGoal, onStartOver }: { initialGoal?: string; onStartOver?: () => void }) {
   const {
@@ -117,13 +82,24 @@ export default function WizardShell({ initialGoal, onStartOver }: { initialGoal?
       <HeaderBar onStartOver={onStartOver} />
 
       {state.error && (
-        <div className="mx-6 mt-3 border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400 sm:mx-8">
+        <div role="alert" className="mx-6 mt-3 border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400 sm:mx-8">
           {state.error}
         </div>
       )}
 
       <div className="relative min-h-0 flex-1">
-        <ErrorBoundary onReset={reset}>
+        <ErrorBoundary fallback={(resetError) => (
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
+            <p className="text-lg font-medium text-zinc-400">Something went wrong.</p>
+            <button
+              type="button"
+              onClick={() => { resetError(); reset(); }}
+              className="bg-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-zinc-200"
+            >
+              Start over
+            </button>
+          </div>
+        )}>
           <div className="animate-fade-in absolute inset-0 overflow-y-auto" key={state.currentStep}>
             {renderStep()}
           </div>

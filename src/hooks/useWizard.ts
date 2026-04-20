@@ -10,8 +10,21 @@ import type {
 } from "@/lib/types";
 
 // Question cache — keyed by goal string, shared across renders
+const MAX_QUESTION_CACHE = 50;
+const MAX_PENDING_FETCHES = 20;
 const questionCache = new Map<string, WizardQuestion[]>();
 const pendingFetches = new Map<string, Promise<WizardQuestion[] | null>>();
+
+function boundedSet<K, V>(map: Map<K, V>, key: K, value: V, max: number) {
+  if (map.has(key)) {
+    map.delete(key); // re-insert moves it to end (most recent)
+  } else if (map.size >= max) {
+    // Evict least-recently-used entry (first key in Map iteration order)
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) map.delete(oldest);
+  }
+  map.set(key, value);
+}
 
 export interface WizardState {
   currentStep: WizardStep;
@@ -132,6 +145,17 @@ export function useWizard(initialGoal?: string) {
     ...(initialGoal ? { currentStep: "biometric-scan" as WizardStep, movementGoal: initialGoal } : {}),
   });
 
+  const biometricAbortRef = useRef<AbortController | null>(null);
+  const productsAbortRef = useRef<AbortController | null>(null);
+
+  // Abort in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      biometricAbortRef.current?.abort();
+      productsAbortRef.current?.abort();
+    };
+  }, []);
+
   // Pre-warm the product cache on mount
   useEffect(() => {
     fetch("/api/wizard/warmup", { method: "POST" }).catch(() => {});
@@ -139,17 +163,25 @@ export function useWizard(initialGoal?: string) {
 
   const submitBiometricImage = useCallback(
     async (image: string) => {
+      biometricAbortRef.current?.abort();
+      const controller = new AbortController();
+      biometricAbortRef.current = controller;
+
       dispatch({ type: "SET_BIOMETRIC_IMAGE", image });
       try {
         const res = await fetch("/api/wizard/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image }),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `API error: ${res.status}`);
-        dispatch({ type: "SET_BIOMETRIC_RESULTS", results: data.results });
+        if (!controller.signal.aborted) {
+          dispatch({ type: "SET_BIOMETRIC_RESULTS", results: data.results });
+        }
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         dispatch({ type: "SET_ERROR", error: err instanceof Error ? err.message : "Failed to analyze image" });
       }
     },
@@ -162,12 +194,17 @@ export function useWizard(initialGoal?: string) {
 
   const fetchQuestionsForGoal = useCallback(
     async (goal: string): Promise<WizardQuestion[] | null> => {
+      // Include biometric gender in cache key so pre-biometric prefetch
+      // doesn't poison the cache for post-biometric fetches
+      const gender = state.biometricResults?.gender || "";
+      const cacheKey = `${goal}::${gender}`;
+
       // Check cache first
-      const cached = questionCache.get(goal);
+      const cached = questionCache.get(cacheKey);
       if (cached) return cached;
 
       // Check if already fetching
-      const pending = pendingFetches.get(goal);
+      const pending = pendingFetches.get(cacheKey);
       if (pending) return pending;
 
       const body: Record<string, string> = { movementGoal: goal };
@@ -184,19 +221,19 @@ export function useWizard(initialGoal?: string) {
           return res.json();
         })
         .then((data) => {
-          pendingFetches.delete(goal);
+          pendingFetches.delete(cacheKey);
           if (data?.questions) {
-            questionCache.set(goal, data.questions);
+            boundedSet(questionCache, cacheKey, data.questions, MAX_QUESTION_CACHE);
             return data.questions as WizardQuestion[];
           }
           return null;
         })
         .catch(() => {
-          pendingFetches.delete(goal);
+          pendingFetches.delete(cacheKey);
           return null;
         });
 
-      pendingFetches.set(goal, promise);
+      boundedSet(pendingFetches, cacheKey, promise, MAX_PENDING_FETCHES);
       return promise;
     },
     [state.biometricImage, state.biometricResults],
@@ -206,10 +243,12 @@ export function useWizard(initialGoal?: string) {
   const prefetchQuestions = useCallback(
     (goal: string) => {
       const trimmed = goal.trim();
-      if (!trimmed || questionCache.has(trimmed) || pendingFetches.has(trimmed)) return;
+      const gender = state.biometricResults?.gender || "";
+      const cacheKey = `${trimmed}::${gender}`;
+      if (!trimmed || questionCache.has(cacheKey) || pendingFetches.has(cacheKey)) return;
       fetchQuestionsForGoal(trimmed);
     },
-    [fetchQuestionsForGoal],
+    [fetchQuestionsForGoal, state.biometricResults],
   );
 
   const submitMovementGoal = useCallback(
@@ -228,16 +267,24 @@ export function useWizard(initialGoal?: string) {
 
   const fetchProducts = useCallback(
     async (movementGoal: string, answers: WizardAnswer[], biometricResults: BiometricResult | null, biometricImage: string | null) => {
+      productsAbortRef.current?.abort();
+      const controller = new AbortController();
+      productsAbortRef.current = controller;
+
       try {
         const res = await fetch("/api/wizard/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ movementGoal, answers, biometricResults, biometricImage }),
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data: RecommendationResult = await res.json();
-        dispatch({ type: "SET_RECOMMENDATION_RESULT", result: data });
+        if (!controller.signal.aborted) {
+          dispatch({ type: "SET_RECOMMENDATION_RESULT", result: data });
+        }
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         dispatch({ type: "SET_ERROR", error: err instanceof Error ? err.message : "Failed to get recommendations" });
       }
     },
@@ -251,25 +298,37 @@ export function useWizard(initialGoal?: string) {
       const fit = result.fits[fitIndex];
       if (!fit || fit.generatedImageBase64) return; // already generated
 
-      try {
-        const res = await fetch("/api/wizard/outfit-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fitName: fit.name,
-            fitVibe: fit.vibe,
-            colorPalette: fit.colorPalette,
-            items: fit.items,
-            biometricResults: state.biometricResults,
-            biometricImage: state.biometricImage,
-          }),
-        });
-        const img = await res.json();
-        if (img.imageBase64) {
-          dispatch({ type: "SET_FIT_IMAGE", fitIndex, imageBase64: img.imageBase64 });
+      const MAX_RETRIES = 2;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const res = await fetch("/api/wizard/outfit-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fitName: fit.name,
+              fitVibe: fit.vibe,
+              colorPalette: fit.colorPalette,
+              items: fit.items,
+              biometricResults: state.biometricResults,
+              biometricImage: state.biometricImage,
+            }),
+          });
+          if (!res.ok && res.status >= 500 && attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          const img = await res.json();
+          if (img.imageBase64) {
+            dispatch({ type: "SET_FIT_IMAGE", fitIndex, imageBase64: img.imageBase64 });
+          }
+          break;
+        } catch {
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          // Final failure is non-critical
         }
-      } catch {
-        // Image gen failure is non-critical
       }
     },
     [state.recommendationResult, state.biometricImage, state.biometricResults],

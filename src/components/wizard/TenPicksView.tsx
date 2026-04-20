@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { ArchetypeProduct, ColorPaletteEntry } from "@/lib/types";
 import ProductResultCard from "./ProductResultCard";
 import ColorPalette from "./ColorPalette";
@@ -14,7 +15,6 @@ interface TenPicksViewProps {
 
 function MobileProductCard({ product }: { product: ArchetypeProduct }) {
   const [imgError, setImgError] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
   const imageUrl = product.imageUrl || "";
 
   return (
@@ -22,19 +22,16 @@ function MobileProductCard({ product }: { product: ArchetypeProduct }) {
       {/* Image */}
       <div className="relative h-24 w-24 shrink-0 overflow-hidden bg-zinc-950">
         {!imgError && imageUrl ? (
-          <>
-            {!imgLoaded && <div className="skeleton absolute inset-0" />}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageUrl}
-              alt={product.name}
-              className={`h-full w-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgError(true)}
-            />
-          </>
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            sizes="96px"
+            className="object-cover"
+            onError={() => setImgError(true)}
+          />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-zinc-800">
+          <div className="flex h-full w-full items-center justify-center text-white">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
             </svg>

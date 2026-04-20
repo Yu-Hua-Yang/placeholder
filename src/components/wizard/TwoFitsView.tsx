@@ -7,7 +7,7 @@ import ShareButton from "./ShareCard";
 
 interface TwoFitsViewProps {
   fits: OutfitFit[];
-  onGenerateFitImage: (fitIndex: number) => void;
+  onGenerateFitImage: (fitIndex: number) => Promise<void>;
 }
 
 export default function TwoFitsView({ fits, onGenerateFitImage }: TwoFitsViewProps) {
@@ -24,10 +24,14 @@ export default function TwoFitsView({ fits, onGenerateFitImage }: TwoFitsViewPro
 
   const fit = fits[activeFit];
 
-  const handleGenerateImage = () => {
+  const handleGenerateImage = async () => {
     if (fit.generatedImageBase64 || generatingIndex === activeFit) return;
     setGeneratingIndex(activeFit);
-    onGenerateFitImage(activeFit);
+    try {
+      await onGenerateFitImage(activeFit);
+    } finally {
+      setGeneratingIndex(null);
+    }
   };
 
   const isGenerating = generatingIndex === activeFit && !fit.generatedImageBase64;
@@ -45,11 +49,13 @@ export default function TwoFitsView({ fits, onGenerateFitImage }: TwoFitsViewPro
       </div>
 
       {/* Toggle */}
-      <div className="mb-6 flex gap-1 sm:mb-8">
+      <div className="mb-6 flex gap-1 sm:mb-8" role="tablist" aria-label="Outfit fits">
         {fits.map((f, i) => (
           <button
             key={f.name}
             type="button"
+            role="tab"
+            aria-selected={activeFit === i}
             onClick={() => setActiveFit(i)}
             className={`px-5 py-2.5 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${
               activeFit === i
@@ -84,7 +90,7 @@ export default function TwoFitsView({ fits, onGenerateFitImage }: TwoFitsViewPro
                 </>
               ) : (
                 <>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-zinc-800">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-white">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <polyline points="21 15 16 10 5 21" />

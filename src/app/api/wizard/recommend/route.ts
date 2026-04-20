@@ -5,6 +5,8 @@ import { chatComplete, buildUserMessage, parseWizardRecommendationResult } from 
 import { detectRecommendationMode, getWizardRankingPromptTenPicks, getWizardRankingPromptTwoFits } from "@/lib/prompts";
 import { type NormalizedProduct } from "@/lib/shopify-stores";
 import { queryProducts } from "@/lib/vector-store";
+import { checkRateLimit } from "@/lib/ratelimit";
+import { sanitizeUserInput } from "@/lib/sanitize";
 import type { WizardAnswer, BiometricResult, WizardRecommendedProduct, Product, RecommendationResult, ArchetypeProduct, OutfitItem } from "@/lib/types";
 
 function normalizedToProduct(p: NormalizedProduct, index: number): Product {
@@ -48,6 +50,9 @@ function hydrateProduct(
 
 export async function POST(req: Request) {
   try {
+    const rateLimited = await checkRateLimit(req, "ai");
+    if (rateLimited) return rateLimited;
+
     const { movementGoal, answers, biometricResults, biometricImage } = (await req.json()) as {
       movementGoal: string;
       answers: WizardAnswer[];
@@ -59,12 +64,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "movementGoal is required" }, { status: 400 });
     }
 
-    const mode = detectRecommendationMode(movementGoal, answers);
+    if (biometricImage && typeof biometricImage === "string") {
+      const MAX_BASE64_LENGTH = 10 * 1024 * 1024; // ~7.5MB decoded
+      if (biometricImage.length > MAX_BASE64_LENGTH) {
+        return NextResponse.json({ error: "Image too large. Maximum size is ~7.5MB." }, { status: 413 });
+      }
+    }
+
+    const sanitizedGoal = sanitizeUserInput(movementGoal, 500);
+    const sanitizedAnswers = answers.map((a) => ({
+      ...a,
+      selectedLabel: sanitizeUserInput(a.selectedLabel, 200),
+    }));
+
+    const mode = detectRecommendationMode(sanitizedGoal, sanitizedAnswers);
     console.log(`[recommend] mode: ${mode}`);
 
-    // Build query from goal + answers — vector search handles everything
-    const queryText = [movementGoal, ...answers.map((a) => a.selectedLabel)].join(". ");
-    const productsToRank = await queryProducts(queryText, 150);
+    // Build query from goal + answers + biometric signals for better vector matching
+    const queryParts = [sanitizedGoal, ...sanitizedAnswers.map((a) => a.selectedLabel)];
+    if (biometricResults) {
+      if (biometricResults.gender) queryParts.push(`${biometricResults.gender}'s`);
+      if (biometricResults.colorSeason) queryParts.push(biometricResults.colorSeason);
+      if (biometricResults.styleVibe) queryParts.push(biometricResults.styleVibe);
+    }
+    const queryText = queryParts.join(". ");
+    // two-fits needs more candidates for category coverage across 5 slots;
+    // ten-picks is single-category so fewer candidates suffice
+    const topK = mode === "two-fits" ? 100 : 60;
+    const productsToRank = await queryProducts(queryText, topK);
     console.log(`[recommend] vector search: ${productsToRank.length} products`);
 
     if (productsToRank.length === 0) {
@@ -80,22 +107,29 @@ export async function POST(req: Request) {
 
     // Build mode-specific prompt
     const systemPrompt = mode === "ten-picks"
-      ? getWizardRankingPromptTenPicks(candidateProducts, movementGoal, answers, biometricResults)
-      : getWizardRankingPromptTwoFits(candidateProducts, movementGoal, answers, biometricResults);
+      ? getWizardRankingPromptTenPicks(candidateProducts, sanitizedGoal, sanitizedAnswers, biometricResults)
+      : getWizardRankingPromptTwoFits(candidateProducts, sanitizedGoal, sanitizedAnswers, biometricResults);
 
-    // Call Gemini for ranking
-    const text = await chatComplete(systemPrompt, [
-      buildUserMessage(
-        "Look at this customer's photo and pick the best products from these partner stores. Consider their body, skin tone, hair, and overall aesthetic.",
-        biometricImage || undefined,
-        biometricImage ? "image/jpeg" : undefined,
-      ),
-    ]);
+    // Call Gemini for ranking (with one retry on parse failure)
+    const userMessage = buildUserMessage(
+      "Look at this customer's photo and pick the best products from these partner stores. Consider their body, skin tone, hair, and overall aesthetic.",
+      biometricImage || undefined,
+      biometricImage ? "image/jpeg" : undefined,
+    );
 
-    const parsed = parseWizardRecommendationResult(text);
+    let text = await chatComplete(systemPrompt, [userMessage]);
+    let parsed = parseWizardRecommendationResult(text);
+
+    if (!parsed) {
+      console.warn(`[recommend] parse failed on first attempt, retrying...`);
+      text = await chatComplete(systemPrompt, [userMessage]);
+      parsed = parseWizardRecommendationResult(text);
+    }
+
     console.log(`[recommend] parsed mode:`, parsed?.mode ?? "PARSE_FAILED");
 
     if (!parsed) {
+      console.error(`[recommend] parse failed after retry. Raw output:`, text.slice(0, 500));
       const emptyResult: RecommendationResult = mode === "ten-picks"
         ? { mode: "ten-picks", category: "", products: [] }
         : { mode: "two-fits", fits: [] };
@@ -147,7 +181,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Wizard recommend error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

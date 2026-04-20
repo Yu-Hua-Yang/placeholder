@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   return (
     <footer className="relative overflow-hidden border-t border-zinc-200 bg-white px-5 py-12 sm:px-12 sm:py-16 lg:px-20">
@@ -45,14 +47,14 @@ export default function Footer() {
               </h3>
               <ul className="mt-4 space-y-3">
                 <li>
-                  <a href="/privacy" className="text-sm text-zinc-500 transition hover:text-zinc-900">
+                  <Link href="/privacy" className="text-sm text-zinc-500 transition hover:text-zinc-900">
                     Privacy
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="/terms" className="text-sm text-zinc-500 transition hover:text-zinc-900">
+                  <Link href="/terms" className="text-sm text-zinc-500 transition hover:text-zinc-900">
                     Terms
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

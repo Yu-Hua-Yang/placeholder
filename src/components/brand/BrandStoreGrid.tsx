@@ -49,7 +49,9 @@ export default function BrandStoreGrid({ products }: BrandStoreGridProps) {
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
+          <label htmlFor="brand-search" className="sr-only">Search products</label>
           <input
+            id="brand-search"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -58,7 +60,9 @@ export default function BrandStoreGrid({ products }: BrandStoreGridProps) {
           />
         </div>
 
+        <label htmlFor="brand-sort" className="sr-only">Sort products</label>
         <select
+          id="brand-sort"
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOption)}
           className="rounded-full border border-zinc-800 bg-transparent px-4 py-2.5 text-[10px] uppercase tracking-[0.15em] text-zinc-500 outline-none"

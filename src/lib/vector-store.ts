@@ -1,29 +1,44 @@
 import { Index } from "@upstash/vector";
 import { embedText, embedTexts, cosineSimilarity } from "./gemini";
+import { env } from "./env";
 import type { NormalizedProduct } from "./shopify-stores";
 type ProductMetadata = Record<string, string | number>;
 type RangeVector = { id: string | number; metadata?: Record<string, string> };
 type RangeResult = { vectors: RangeVector[]; nextCursor: string };
+
+const COLOR_NAMES = new Set([
+  "black","white","grey","gray","red","blue","green","navy","olive","cream",
+  "beige","tan","brown","pink","purple","orange","yellow","teal","burgundy",
+  "charcoal","khaki","coral","mint","sand","ivory","slate","forest","rust",
+  "wine","sage","mauve","indigo","emerald","cobalt","crimson","gold","silver",
+  "copper","bronze",
+]);
 
 let index: Index | null = null;
 
 function getIndex(): Index {
   if (!index) {
     index = new Index({
-      url: process.env.UPSTASH_VECTOR_REST_URL!,
-      token: process.env.UPSTASH_VECTOR_REST_TOKEN!,
+      url: env.UPSTASH_VECTOR_REST_URL,
+      token: env.UPSTASH_VECTOR_REST_TOKEN,
     });
   }
   return index;
 }
 
+function priceBucket(price: number): string {
+  if (price < 50) return "budget";
+  if (price < 120) return "mid-range";
+  if (price < 250) return "premium";
+  return "luxury";
+}
+
 function productToEmbeddingText(p: NormalizedProduct): string {
-  // Include color info from tags and product name for color-aware matching
-  const colorTags = p.tags.filter((t) =>
-    /black|white|grey|gray|red|blue|green|navy|olive|cream|beige|tan|brown|pink|purple|orange|yellow|teal|burgundy|charcoal|khaki|coral|mint|sand|ivory|slate|forest|rust|wine|sage|mauve|indigo|emerald|cobalt|crimson|gold|silver|copper|bronze/i.test(t)
-  );
+  // Include color, category, and price signals for richer semantic matching
+  const colorTags = p.tags.filter((t) => COLOR_NAMES.has(t.toLowerCase()));
   const colors = colorTags.length > 0 ? colorTags.join(" ") : "";
-  return `${p.name} ${p.productType} ${p.vendor} ${p.storeName} ${colors} ${p.tags.slice(0, 8).join(" ")} ${p.description.slice(0, 80)}`;
+  const category = classifyCategory(p);
+  return `${p.name} ${p.productType} ${category} ${p.vendor} ${p.storeName} ${priceBucket(p.price)} ${colors} ${p.tags.slice(0, 8).join(" ")} ${p.description.slice(0, 100)}`;
 }
 
 function productId(p: NormalizedProduct): string {
@@ -42,7 +57,10 @@ function productHash(p: NormalizedProduct): string {
  * - Deletes products that no longer exist
  * - Detects changes via content hash stored in metadata
  */
-export async function syncProducts(products: NormalizedProduct[]): Promise<{ added: number; updated: number; deleted: number; unchanged: number; total: number }> {
+export async function syncProducts(
+  products: NormalizedProduct[],
+  options?: { skipDeleteDetection?: boolean },
+): Promise<{ added: number; updated: number; deleted: number; unchanged: number; total: number; failedUpserts: number; failedDeletes: number }> {
   const idx = getIndex();
   const BATCH = 100;
 
@@ -55,23 +73,27 @@ export async function syncProducts(products: NormalizedProduct[]): Promise<{ add
     currentHashes.set(id, productHash(p));
   }
 
-  // Fetch all existing IDs + hashes from the index
-  // We do this by fetching vectors in batches using the IDs we know about
   const existingHashes = new Map<string, string>();
-  const allCurrentIds = Array.from(currentProducts.keys());
 
-  for (let i = 0; i < allCurrentIds.length; i += BATCH) {
-    const batchIds = allCurrentIds.slice(i, i + BATCH);
-    try {
-      const fetched = await idx.fetch(batchIds, { includeMetadata: true });
-      for (const item of fetched) {
-        if (item && item.metadata) {
-          const m = item.metadata as Record<string, string>;
-          existingHashes.set(item.id as string, m._hash || "");
-        }
+  if (!options?.skipDeleteDetection) {
+    // Scan ALL existing IDs + hashes from the index (full scan)
+    // This ensures we detect products that were removed from Shopify stores
+    let scanCursor: string | number = 0;
+
+    while (true) {
+      const result: RangeResult = await idx.range({
+        cursor: scanCursor,
+        limit: 500,
+        includeMetadata: true,
+      });
+
+      for (const item of result.vectors) {
+        const m = (item.metadata || {}) as Record<string, string>;
+        existingHashes.set(item.id as string, m._hash || "");
       }
-    } catch {
-      // Some IDs might not exist yet — that's fine
+
+      if (!result.nextCursor || result.nextCursor === "0") break;
+      scanCursor = result.nextCursor;
     }
   }
 
@@ -91,13 +113,12 @@ export async function syncProducts(products: NormalizedProduct[]): Promise<{ add
   }
 
   // Determine what needs to be deleted (exists in index but not in current fetch)
-  // We need to find IDs in the index that aren't in currentProducts
-  // Since we can't list all IDs easily, we'll track deletions by checking
-  // the index info for count mismatch after upsert
   const existingIdsNotInCurrent: string[] = [];
-  for (const existingId of existingHashes.keys()) {
-    if (!currentProducts.has(existingId)) {
-      existingIdsNotInCurrent.push(existingId);
+  if (!options?.skipDeleteDetection) {
+    for (const existingId of existingHashes.keys()) {
+      if (!currentProducts.has(existingId)) {
+        existingIdsNotInCurrent.push(existingId);
+      }
     }
   }
 
@@ -106,6 +127,7 @@ export async function syncProducts(products: NormalizedProduct[]): Promise<{ add
   // Upsert new/changed products
   let added = 0;
   let updated = 0;
+  let failedUpserts = 0;
 
   for (let i = 0; i < toUpsert.length; i += BATCH) {
     const batch = toUpsert.slice(i, i + BATCH);
@@ -141,6 +163,7 @@ export async function syncProducts(products: NormalizedProduct[]): Promise<{ add
       }
     } catch (err) {
       console.error(`[vector] upsert batch ${Math.floor(i / BATCH) + 1} failed:`, err);
+      failedUpserts += batch.length;
     }
 
     if (i + BATCH < toUpsert.length) {
@@ -150,6 +173,7 @@ export async function syncProducts(products: NormalizedProduct[]): Promise<{ add
 
   // Delete removed products
   let deleted = 0;
+  let failedDeletes = 0;
   if (existingIdsNotInCurrent.length > 0) {
     for (let i = 0; i < existingIdsNotInCurrent.length; i += BATCH) {
       const batch = existingIdsNotInCurrent.slice(i, i + BATCH);
@@ -158,12 +182,13 @@ export async function syncProducts(products: NormalizedProduct[]): Promise<{ add
         deleted += batch.length;
       } catch (err) {
         console.error(`[vector] delete batch failed:`, err);
+        failedDeletes += batch.length;
       }
     }
   }
 
-  console.log(`[vector] sync done: +${added} added, ~${updated} updated, -${deleted} deleted, =${unchanged} unchanged`);
-  return { added, updated, deleted, unchanged, total: currentProducts.size };
+  console.log(`[vector] sync done: +${added} added, ~${updated} updated, -${deleted} deleted, =${unchanged} unchanged${failedUpserts ? `, !${failedUpserts} upsert failures` : ""}${failedDeletes ? `, !${failedDeletes} delete failures` : ""}`);
+  return { added, updated, deleted, unchanged, total: currentProducts.size, failedUpserts, failedDeletes };
 }
 
 // Category classification for distribution balancing
@@ -198,8 +223,12 @@ export async function queryProducts(
   const idx = getIndex();
   const queryVector = await embedText(queryText);
 
-  // Fetch more than topK so we have room to rebalance
-  const fetchK = Math.min(topK * 3, 500);
+  // Fetch more than topK so we have room to rebalance.
+  // Outfit queries need a wider net since cosine similarity clusters
+  // around the dominant category — 5x gives balanced categories room.
+  const wantsOutfit = OUTFIT_KEYWORDS.test(queryText);
+  const multiplier = wantsOutfit ? 5 : 3;
+  const fetchK = Math.min(topK * multiplier, 500);
   const results = await idx.query({
     vector: queryVector,
     topK: fetchK,
@@ -221,9 +250,6 @@ export async function queryProducts(
       _score: r.score || 0,
     };
   });
-
-  // If query implies an outfit, balance categories
-  const wantsOutfit = OUTFIT_KEYWORDS.test(queryText);
 
   if (wantsOutfit && allProducts.length > topK) {
     return balancedSelect(allProducts, topK);
@@ -371,6 +397,7 @@ async function scanRawVendors(): Promise<Map<string, number>> {
  * Call this from /api/wizard/sync or a dedicated endpoint.
  */
 export async function buildVendorMap(): Promise<{ total: number; clusters: number }> {
+  invalidateVendorCache();
   const rawCounts = await scanRawVendors();
 
   // Step 1: Rule-based pre-grouping
@@ -478,6 +505,11 @@ export async function buildVendorMap(): Promise<{ total: number; clusters: numbe
 
   console.log(`[vendors] built map: ${rawCounts.size} raw → ${mergedClusters.length} brands`);
   return { total: rawCounts.size, clusters: mergedClusters.length };
+}
+
+/** Invalidate the vendor cache so the next read triggers a rebuild */
+export function invalidateVendorCache(): void {
+  _vendorMapTs = 0;
 }
 
 /** Get the raw→canonical vendor mapping, building rule-based fallback if needed */

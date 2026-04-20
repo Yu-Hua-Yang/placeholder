@@ -3,10 +3,13 @@ export const maxDuration = 60;
 import { NextResponse } from "next/server";
 import { generateOutfitImage } from "@/lib/gemini";
 import { getOutfitImagePrompt, type OutfitItemDetail } from "@/lib/prompts";
+import { checkRateLimit } from "@/lib/ratelimit";
 import type { BiometricResult, OutfitItem } from "@/lib/types";
 
 export async function POST(req: Request) {
   try {
+    const rateLimited = await checkRateLimit(req, "ai");
+    if (rateLimited) return rateLimited;
     const { fitName, fitVibe, colorPalette, items, biometricResults, biometricImage } = (await req.json()) as {
       fitName: string;
       fitVibe: string;

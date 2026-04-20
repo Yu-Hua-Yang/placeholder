@@ -1,6 +1,10 @@
+import type { ReactNode } from "react";
+import BodySilhouetteSvg from "@/components/ui/BodySilhouetteSvg";
+import RevealOnScroll from "@/components/ui/RevealOnScroll";
+
 /* ── Sleek phone mockups of the actual wizard UI ── */
 
-function PhoneFrame({ children }: { children: React.ReactNode }) {
+function PhoneFrame({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto w-full max-w-[200px] sm:max-w-[220px]">
       {/* Titanium bezel — thin border */}
@@ -74,33 +78,7 @@ function ScanMockup() {
 
         {/* Body guide silhouette */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <svg
-            viewBox="0 0 200 400"
-            className="h-[50%] w-auto opacity-[0.1]"
-            fill="none"
-            stroke="white"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <ellipse cx="100" cy="42" rx="22" ry="28" />
-            <line x1="92" y1="70" x2="92" y2="88" />
-            <line x1="108" y1="70" x2="108" y2="88" />
-            <line x1="92" y1="88" x2="46" y2="100" />
-            <line x1="108" y1="88" x2="154" y2="100" />
-            <line x1="46" y1="100" x2="56" y2="220" />
-            <line x1="154" y1="100" x2="144" y2="220" />
-            <line x1="56" y1="220" x2="64" y2="240" />
-            <line x1="144" y1="220" x2="136" y2="240" />
-            <line x1="64" y1="240" x2="70" y2="370" />
-            <line x1="136" y1="240" x2="130" y2="370" />
-            <line x1="70" y1="370" x2="58" y2="380" />
-            <line x1="130" y1="370" x2="142" y2="380" />
-            <line x1="46" y1="100" x2="28" y2="210" />
-            <line x1="154" y1="100" x2="172" y2="210" />
-            <line x1="28" y1="210" x2="24" y2="224" />
-            <line x1="172" y1="210" x2="176" y2="224" />
-          </svg>
+          <BodySilhouetteSvg className="h-[50%] w-auto opacity-[0.1]" strokeWidth={1.2} />
         </div>
 
         {/* Scan line — animated sweep */}
@@ -114,7 +92,7 @@ function ScanMockup() {
           </div>
           <div className="flex items-center gap-1">
             <div className="h-1 w-1 rounded-full bg-emerald-400/80 mockup-pulse" />
-            <span className="text-[4.5px] font-mono text-emerald-400/60">LIVE</span>
+            <span className="text-[4.5px] font-[monospace] text-emerald-400/60">LIVE</span>
           </div>
         </div>
 
@@ -303,13 +281,13 @@ export default function HowItWorksSection() {
         {/* Cards grid */}
         <div className="mt-12 grid grid-cols-1 gap-10 sm:mt-20 sm:grid-cols-3 sm:gap-8">
           {STEPS.map((step, i) => (
-            <div
+            <RevealOnScroll
               key={step.number}
-              className="reveal group"
-              style={{ transitionDelay: `${i * 150}ms` }}
+              className="group"
+              delay={i * 150}
             >
               {/* Mockup */}
-              <div className="flex items-center justify-center py-4 transition-transform duration-500 group-hover:-translate-y-2">
+              <div className="flex items-center justify-center py-4 transition-transform duration-500 group-hover:-translate-y-2" aria-hidden="true">
                 {step.mockup}
               </div>
 
@@ -325,7 +303,7 @@ export default function HowItWorksSection() {
                   {step.desc}
                 </p>
               </div>
-            </div>
+            </RevealOnScroll>
           ))}
         </div>
       </div>

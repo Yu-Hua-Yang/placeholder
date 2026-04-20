@@ -37,7 +37,7 @@ export default function EmailGate({ onSubmit }: EmailGateProps) {
           Almost there
         </h2>
         <p className="mb-12 text-sm text-zinc-500">
-          Enter your email so we can send you your personalized recommendations.
+          Enter your email to get your personalized recommendations sent to you.
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -60,9 +60,13 @@ export default function EmailGate({ onSubmit }: EmailGateProps) {
           </button>
         </form>
 
-        <p className="mt-6 text-[10px] text-zinc-700">
-          We&apos;ll email your results after your session.
-        </p>
+        <button
+          type="button"
+          onClick={() => onSubmit("")}
+          className="mt-6 text-[11px] text-zinc-600 underline underline-offset-2 transition-colors hover:text-zinc-400"
+        >
+          Skip for now
+        </button>
       </div>
     </div>
   );

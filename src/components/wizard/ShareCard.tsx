@@ -174,6 +174,10 @@ async function buildTenPicksCard(
   const fctx = finalCanvas.getContext("2d")!;
   fctx.drawImage(canvas, 0, 0);
 
+  // Release intermediate canvas memory
+  canvas.width = 0;
+  canvas.height = 0;
+
   return new Promise((resolve) => finalCanvas.toBlob(resolve, "image/png"));
 }
 
@@ -320,6 +324,10 @@ async function buildTwoFitsCard(fit: OutfitFit): Promise<Blob | null> {
   const fctx = finalCanvas.getContext("2d")!;
   fctx.drawImage(canvas, 0, 0);
 
+  // Release intermediate canvas memory
+  canvas.width = 0;
+  canvas.height = 0;
+
   return new Promise((resolve) => finalCanvas.toBlob(resolve, "image/png"));
 }
 
@@ -352,45 +360,64 @@ interface ShareCardProps {
 
 export default function ShareButton({ mode, category, products, personalPalette, fit }: ShareCardProps) {
   const [sharing, setSharing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleShare = useCallback(async () => {
     if (sharing) return;
     setSharing(true);
+    setError(null);
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timeout")), 10000)
+    );
+
     try {
-      let blob: Blob | null = null;
-      if (mode === "ten-picks" && category && products && personalPalette) {
-        blob = await buildTenPicksCard(category, products, personalPalette);
-      } else if (mode === "two-fits" && fit) {
-        blob = await buildTwoFitsCard(fit);
-      }
-      if (blob) await shareBlob(blob);
-    } catch {
-      // Share cancelled or failed
+      const work = async () => {
+        let blob: Blob | null = null;
+        if (mode === "ten-picks" && category && products && personalPalette) {
+          blob = await buildTenPicksCard(category, products, personalPalette);
+        } else if (mode === "two-fits" && fit) {
+          blob = await buildTwoFitsCard(fit);
+        }
+        if (blob) await shareBlob(blob);
+      };
+      await Promise.race([work(), timeout]);
+    } catch (e) {
+      const msg = e instanceof Error && e.message === "timeout"
+        ? "Generation timed out — try again"
+        : "Share failed — try again";
+      setError(msg);
+      setTimeout(() => setError(null), 3000);
     } finally {
       setSharing(false);
     }
   }, [sharing, mode, category, products, personalPalette, fit]);
 
   return (
-    <button
-      type="button"
-      onClick={handleShare}
-      disabled={sharing}
-      className="flex items-center justify-center gap-2 border border-zinc-800 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
-    >
-      {sharing ? (
-        <>
-          <div className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} />
-          Generating
-        </>
-      ) : (
-        <>
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
-          </svg>
-          Share My {mode === "ten-picks" ? "Picks" : "Fit"}
-        </>
+    <div className="flex flex-col items-center gap-2">
+      <button
+        type="button"
+        onClick={handleShare}
+        disabled={sharing}
+        className="flex items-center justify-center gap-2 border border-zinc-800 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        {sharing ? (
+          <>
+            <div className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} />
+            Generating
+          </>
+        ) : (
+          <>
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
+            </svg>
+            Share My {mode === "ten-picks" ? "Picks" : "Fit"}
+          </>
+        )}
+      </button>
+      {error && (
+        <p className="text-[10px] text-red-400">{error}</p>
       )}
-    </button>
+    </div>
   );
 }

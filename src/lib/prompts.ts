@@ -250,14 +250,27 @@ export function detectRecommendationMode(movementGoal: string, answers: WizardAn
   const goalLower = movementGoal.toLowerCase();
   const combined = `${goalLower} ${answersLower}`;
 
-  const outfitKeywords = ["full-outfit", "full outfit", "head to toe", "outfit", "whole look", "complete look", "drip", "style me", "dress me"];
-  const outfitPatterns = [/\bfit\b/, /\blook\b/];
+  // Strong outfit signals — high confidence
+  const strongOutfitKeywords = ["full-outfit", "full outfit", "head to toe", "whole look", "complete look", "style me", "dress me"];
+  if (strongOutfitKeywords.some((kw) => combined.includes(kw))) return "two-fits";
 
-  const wantsOutfit =
-    outfitKeywords.some((kw) => combined.includes(kw)) ||
-    outfitPatterns.some((re) => re.test(combined));
+  // Single-item signals — if the goal explicitly names ONE product type, it's ten-picks
+  const singleItemPatterns = /\b(shoes?|sneakers?|boots?|shorts?|pants?|jacket|hoodie|shirt|tee|hat|bag|socks?)\b/i;
+  const goalHasSingleItem = singleItemPatterns.test(goalLower);
 
-  return wantsOutfit ? "two-fits" : "ten-picks";
+  // Weak outfit signals — only count if no single-item signal in goal
+  const weakOutfitKeywords = ["outfit", "drip"];
+  const weakOutfitPatterns = [/\bfit\b/, /\blook\b/];
+
+  const hasWeakOutfitSignal =
+    weakOutfitKeywords.some((kw) => combined.includes(kw)) ||
+    weakOutfitPatterns.some((re) => re.test(combined));
+
+  // "running shoes for a full fit" → single item wins
+  // "full drip for going out" → outfit wins
+  if (hasWeakOutfitSignal && !goalHasSingleItem) return "two-fits";
+
+  return "ten-picks";
 }
 
 // --- Shared helpers ---
@@ -289,16 +302,16 @@ Aesthetic: Skin ${biometricResults.skinTone}, Hair ${biometricResults.hairColor}
 Color Season: ${biometricResults.colorSeason} — Style: ${biometricResults.styleVibe}`;
 
     if (biometricResults.personalPalette?.length > 0) {
-      const bases = biometricResults.personalPalette.filter((c) => c.usage === "base").map((c) => c.name);
-      const accents = biometricResults.personalPalette.filter((c) => c.usage === "accent").map((c) => c.name);
-      const neutrals = biometricResults.personalPalette.filter((c) => c.usage === "neutral").map((c) => c.name);
-      const pops = biometricResults.personalPalette.filter((c) => c.usage === "pop").map((c) => c.name);
+      const combo1 = biometricResults.personalPalette.filter((c) => c.usage === "combo-1").map((c) => c.name);
+      const combo2 = biometricResults.personalPalette.filter((c) => c.usage === "combo-2").map((c) => c.name);
+      const combo3 = biometricResults.personalPalette.filter((c) => c.usage === "combo-3").map((c) => c.name);
+      const allColors = biometricResults.personalPalette.map((c) => c.name);
       paletteContext = `\n\nPERSONAL COLOR PALETTE (colors that flatter this person):
-Base colors: ${bases.join(", ")}
-Accent colors: ${accents.join(", ")}
-Neutrals: ${neutrals.join(", ")}
-Pop color: ${pops.join(", ")}
-IMPORTANT: Strongly prefer products in these colors or close matches. The palette was derived from their skin tone, hair, and color season. Color harmony is key to making recommendations look great on this specific person.`;
+Outfit combo 1 (versatile): ${combo1.join(", ")}
+Outfit combo 2 (bold): ${combo2.join(", ")}
+Outfit combo 3 (minimal): ${combo3.join(", ")}
+All flattering colors: ${allColors.join(", ")}
+IMPORTANT: Strongly prefer products in these colors or close matches. The palette was derived from their skin tone, hair, and color season. Color harmony is key to making recommendations look great on this specific person. When building outfits, try to use colors from the same combo together.`;
     }
   }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCamera } from "@/hooks/useCamera";
 import { resizeImageToBase64 } from "@/lib/image";
+import BodySilhouetteSvg from "@/components/ui/BodySilhouetteSvg";
 import ProductTeaser, { prefetchTeasers } from "./ProductTeaser";
 
 interface BiometricScanStepProps {
@@ -38,51 +39,16 @@ function ScanOverlay() {
       {/* Telemetry labels */}
       <div className="pointer-events-none absolute top-4 left-4 flex flex-col gap-1">
         <span className="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">AuraFits Scan</span>
-        <span className="text-[8px] font-mono text-white/30">Live</span>
+        <span className="text-[8px] font-[monospace] text-white/30">Live</span>
       </div>
       <div className="pointer-events-none absolute bottom-4 right-4 flex flex-col items-end gap-1">
-        <span className="text-[8px] font-mono text-white/30">1280 × 960</span>
+        <span className="text-[8px] font-[monospace] text-white/30">1280 × 960</span>
         <span className="text-[8px] font-bold uppercase tracking-[0.25em] text-white/40">Ready</span>
       </div>
 
       {/* Body frame guide */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <svg
-          viewBox="0 0 200 400"
-          className="h-[70%] w-auto opacity-[0.12]"
-          fill="none"
-          stroke="white"
-          strokeWidth="1"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {/* Head */}
-          <ellipse cx="100" cy="42" rx="22" ry="28" />
-          {/* Neck */}
-          <line x1="92" y1="70" x2="92" y2="88" />
-          <line x1="108" y1="70" x2="108" y2="88" />
-          {/* Shoulders */}
-          <line x1="92" y1="88" x2="46" y2="100" />
-          <line x1="108" y1="88" x2="154" y2="100" />
-          {/* Torso */}
-          <line x1="46" y1="100" x2="56" y2="220" />
-          <line x1="154" y1="100" x2="144" y2="220" />
-          {/* Hips */}
-          <line x1="56" y1="220" x2="64" y2="240" />
-          <line x1="144" y1="220" x2="136" y2="240" />
-          {/* Legs */}
-          <line x1="64" y1="240" x2="70" y2="370" />
-          <line x1="136" y1="240" x2="130" y2="370" />
-          {/* Feet */}
-          <line x1="70" y1="370" x2="58" y2="380" />
-          <line x1="130" y1="370" x2="142" y2="380" />
-          {/* Arms */}
-          <line x1="46" y1="100" x2="28" y2="210" />
-          <line x1="154" y1="100" x2="172" y2="210" />
-          {/* Hands */}
-          <line x1="28" y1="210" x2="24" y2="224" />
-          <line x1="172" y1="210" x2="176" y2="224" />
-        </svg>
+        <BodySilhouetteSvg className="h-[70%] w-auto opacity-[0.12]" />
       </div>
     </>
   );
@@ -94,6 +60,7 @@ export default function BiometricScanStep({ onCapture, isLoading }: BiometricSca
   const [error, setError] = useState<string | null>(null);
   const [analyzeStep, setAnalyzeStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isCameraFailed = !!error && !cameraActive;
 
   // Advance analyze steps while loading
   useEffect(() => {
@@ -117,6 +84,7 @@ export default function BiometricScanStep({ onCapture, isLoading }: BiometricSca
   }, [cameraActive, attachVideo]);
 
   const handleCapture = () => {
+    setError(null);
     const image = capture();
     if (image) {
       stop();
@@ -137,6 +105,7 @@ export default function BiometricScanStep({ onCapture, isLoading }: BiometricSca
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError(null);
     try {
       const base64 = await resizeImageToBase64(file);
       stop();
@@ -182,6 +151,28 @@ export default function BiometricScanStep({ onCapture, isLoading }: BiometricSca
       <div className="relative mx-auto h-full w-full overflow-hidden bg-zinc-950 sm:max-w-lg">
         {cameraActive ? (
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full object-cover" />
+        ) : isCameraFailed ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-8 text-center">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+              <path d="M1 1l22 22" />
+              <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h6l2 3h3a2 2 0 0 1 2 2v9" />
+              <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-zinc-300">Camera not available</p>
+              <p className="mt-2 text-xs text-zinc-500">Upload a full-body photo instead — works just as well</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (fileInputRef.current) fileInputRef.current.value = "";
+                fileInputRef.current?.click();
+              }}
+              className="mt-2 w-full max-w-xs bg-white py-4 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-zinc-200"
+            >
+              Upload Photo
+            </button>
+          </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
             <div className="spinner" />
@@ -222,33 +213,50 @@ export default function BiometricScanStep({ onCapture, isLoading }: BiometricSca
         </div>
 
         {/* Controls — bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-5">
-          <div className="flex flex-col items-center gap-3">
-            <button
-              type="button"
-              onClick={handleCapture}
-              disabled={!cameraActive}
-              className="w-full bg-white py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-zinc-200 disabled:opacity-30"
-            >
-              Capture
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full border border-white/20 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 transition-colors hover:border-white hover:text-white"
-            >
-              Upload Photo
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleUpload}
-              className="hidden"
-            />
-          </div>
-          {error && (
-            <div className="mt-3 text-center text-[10px] text-red-400">{error}</div>
+        <div className="absolute bottom-0 left-0 right-0 px-5 pt-5 p-safe-bottom">
+          {isCameraFailed ? (
+            <div className="flex flex-col items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleUpload}
+                className="hidden"
+                aria-label="Upload photo"
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={handleCapture}
+                disabled={!cameraActive}
+                className="w-full bg-white py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-zinc-200 disabled:opacity-30"
+              >
+                Capture
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                  fileInputRef.current?.click();
+                }}
+                className="w-full border border-white/20 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 transition-colors hover:border-white hover:text-white"
+              >
+                Upload Photo
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleUpload}
+                className="hidden"
+                aria-label="Upload photo"
+              />
+              {error && (
+                <div className="mt-3 text-center text-[10px] text-red-400">{error}</div>
+              )}
+            </div>
           )}
         </div>
       </div>

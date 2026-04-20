@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 interface PairProduct {
   name: string;
@@ -29,7 +30,7 @@ export default function PairsWithSection({
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function fetchPairs() {
       try {
@@ -37,19 +38,21 @@ export default function PairsWithSection({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ productName, productType, tags, storeName }),
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
-        if (!cancelled) setPairs(data.pairs || []);
-      } catch {
-        if (!cancelled) setError(true);
+        setPairs(data.pairs || []);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     fetchPairs();
-    return () => { cancelled = true; };
+    return () => { controller.abort(); };
   }, [productName, productType, tags, storeName]);
 
   if (loading) {
@@ -84,15 +87,13 @@ export default function PairsWithSection({
             onClick={(e) => e.stopPropagation()}
             className="group w-20 flex-shrink-0 sm:w-24"
           >
-            <div className="aspect-square overflow-hidden rounded-lg bg-zinc-800">
-              <img
+            <div className="relative aspect-square overflow-hidden rounded-lg bg-zinc-800">
+              <Image
                 src={pair.imageUrl}
                 alt={pair.name}
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
+                fill
+                sizes="(max-width: 640px) 80px, 96px"
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
               />
             </div>
             <p className="mt-1 line-clamp-1 text-[9px] text-zinc-500 group-hover:text-zinc-300">

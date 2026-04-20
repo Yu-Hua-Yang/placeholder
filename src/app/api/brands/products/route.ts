@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const vendor = searchParams.get("vendor");
 
-  if (!vendor) {
+  if (!vendor || vendor.length > 200) {
     return NextResponse.json({ products: [] }, { status: 400 });
   }
 

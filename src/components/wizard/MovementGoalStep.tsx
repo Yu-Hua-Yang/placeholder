@@ -18,14 +18,12 @@ const QUICK_PILLS = [
 export default function MovementGoalStep({ onSubmit, onPrefetch, isLoading }: MovementGoalStepProps) {
   const [input, setInput] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const prefetchedPills = useRef(false);
+  const prefetchedRef = useRef(new Set<string>());
+  const mountedRef = useRef(true);
 
-  // Prefetch questions for quick pills on mount
   useEffect(() => {
-    if (prefetchedPills.current) return;
-    prefetchedPills.current = true;
-    QUICK_PILLS.forEach((pill) => onPrefetch(pill));
-  }, [onPrefetch]);
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Debounce prefetch as user types (800ms after they stop)
   useEffect(() => {
@@ -34,7 +32,7 @@ export default function MovementGoalStep({ onSubmit, onPrefetch, isLoading }: Mo
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      onPrefetch(trimmed);
+      if (mountedRef.current) onPrefetch(trimmed);
     }, 800);
 
     return () => {
@@ -96,6 +94,18 @@ export default function MovementGoalStep({ onSubmit, onPrefetch, isLoading }: Mo
               key={pill}
               type="button"
               onClick={() => handlePill(pill)}
+              onMouseEnter={() => {
+                if (!prefetchedRef.current.has(pill)) {
+                  prefetchedRef.current.add(pill);
+                  onPrefetch(pill);
+                }
+              }}
+              onFocus={() => {
+                if (!prefetchedRef.current.has(pill)) {
+                  prefetchedRef.current.add(pill);
+                  onPrefetch(pill);
+                }
+              }}
               disabled={isLoading}
               className="border border-zinc-800 px-4 py-2 text-sm text-zinc-500 transition-colors hover:border-white hover:text-white disabled:opacity-30"
             >

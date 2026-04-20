@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import NavBar from "@/components/landing/NavBar";
 import HeroSection from "@/components/landing/HeroSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
@@ -21,38 +20,23 @@ function Divider() {
   );
 }
 
-export default function LandingPage({ onStartWithGoal }: LandingPageProps) {
-  useEffect(() => {
-    const els = document.querySelectorAll(".reveal");
-    const observer = new IntersectionObserver(
-      (entries) =>
-        entries.forEach((e) => {
-          if (e.isIntersecting) e.target.classList.add("visible");
-        }),
-      { threshold: 0.15 }
-    );
-    els.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
+function scrollToHeroInput() {
+  const el = document.getElementById("hero-input");
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => el?.focus(), 400);
+}
 
+export default function LandingPage({ onStartWithGoal }: LandingPageProps) {
   return (
     <div className="bg-white">
-      <NavBar onStart={() => {
-        const el = document.getElementById("hero-input");
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
-        setTimeout(() => el?.focus(), 400);
-      }} />
+      <NavBar onStart={scrollToHeroInput} />
       <HeroSection onStartWithGoal={onStartWithGoal} />
       <BrandSection onStartWithGoal={onStartWithGoal} />
       <Divider />
       <ShowcaseSection onStartWithGoal={onStartWithGoal} />
       <Divider />
       <HowItWorksSection />
-      <FinalCTASection onStart={() => {
-        const el = document.getElementById("hero-input");
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
-        setTimeout(() => el?.focus(), 400);
-      }} />
+      <FinalCTASection onStart={scrollToHeroInput} />
       <Footer />
     </div>
   );

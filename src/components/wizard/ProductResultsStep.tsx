@@ -9,7 +9,7 @@ interface ProductResultsStepProps {
   result: RecommendationResult | null;
   isLoading: boolean;
   personalPalette: ColorPaletteEntry[];
-  onGenerateFitImage: (fitIndex: number) => void;
+  onGenerateFitImage: (fitIndex: number) => Promise<void>;
 }
 
 const LOADING_STEPS = [

@@ -1,5 +1,3 @@
-"use client";
-
 import type { WizardAnswer } from "@/lib/types";
 
 interface AnswerBadgesProps {
